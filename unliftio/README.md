@@ -1,5 +1,9 @@
 # unliftio
 
+[![Travis Build Status](https://travis-ci.org/fpco/unliftio.svg?branch=master)](https://travis-ci.org/fpco/unliftio)
+[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/sprg5nlyh0codcpv?svg=true)](https://ci.appveyor.com/project/snoyberg/unliftio)
+
+
 Provides the core `MonadUnliftIO` typeclass, a number of common
 instances, and a collection of common functions working with it.  Not
 sure what the `MonadUnliftIO` typeclass is all about? Read on!
