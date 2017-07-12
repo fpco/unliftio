@@ -11,6 +11,7 @@ module Control.Monad.IO.Unlift
   , MonadIO (..)
   ) where
 
+import Control.Monad (liftM)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader (ReaderT (..))
 import Control.Monad.Trans.Identity (IdentityT (..))
@@ -78,7 +79,7 @@ instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
 --
 -- @since 0.1.0.0
 askRunInIO :: MonadUnliftIO m => m (m a -> IO a)
-askRunInIO = fmap unliftIO askUnliftIO
+askRunInIO = liftM unliftIO askUnliftIO
 
 -- | Convenience function for capturing the monadic context and running
 -- an 'IO' action.

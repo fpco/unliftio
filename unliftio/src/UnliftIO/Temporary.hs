@@ -12,7 +12,7 @@ module UnliftIO.Temporary
   ) where
 
 import Control.Monad.IO.Unlift
-import Control.Monad (void)
+import Control.Monad (liftM)
 import UnliftIO.Exception
 import System.Directory
 import System.IO (Handle, openTempFile, hClose)
@@ -132,4 +132,4 @@ mkPrivateDir s = System.Posix.createDirectory s 0o700
 #endif
 
 ignoringIOErrors :: MonadUnliftIO m => m () -> m ()
-ignoringIOErrors = void . tryIO
+ignoringIOErrors = liftM (const ()) . tryIO -- yes, it's just void, but for pre-AMP GHCs

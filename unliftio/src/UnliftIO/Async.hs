@@ -56,6 +56,10 @@ import Control.Monad.IO.Unlift
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
+#else
+import Data.Monoid
+import Data.Foldable (Foldable)
+import Data.Traversable (Traversable)
 #endif
 
 -- | Unlift 'A.async'
@@ -319,13 +323,13 @@ instance Monad m => Functor (Concurrently m) where
 instance MonadUnliftIO m => Applicative (Concurrently m) where
   pure = Concurrently . return
   Concurrently fs <*> Concurrently as =
-    Concurrently $ (\(f, a) -> f a) <$> concurrently fs as
+    Concurrently $ liftM (\(f, a) -> f a) (concurrently fs as)
 
 -- | @since 0.1.0.0
 instance MonadUnliftIO m => Alternative (Concurrently m) where
   empty = Concurrently $ liftIO (forever (threadDelay maxBound))
   Concurrently as <|> Concurrently bs =
-    Concurrently $ either id id <$> race as bs
+    Concurrently $ liftM (either id id) (race as bs)
 
 #if MIN_VERSION_base(4,9,0)
 -- | Only defined by @async@ for @base >= 4.9@
