@@ -22,7 +22,11 @@ dependencies:
   - resourcet
   - transformers
   - unliftio-core
-  - unix # FIXME make this a conditional dependency
+
+when:
+- condition: "!os(Windows)"
+  dependencies:
+  - unix
 
 library:
   source-dirs:
