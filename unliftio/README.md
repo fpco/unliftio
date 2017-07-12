@@ -343,3 +343,15 @@ library, we recommend depending on that package to provide your
 instances. The `unliftio` package is a "batteries loaded" library
 providing a plethora of pre-unlifted helper functions. It's a good
 choice for importing, or even for use in a custom prelude.
+
+## Orphans
+
+The `unliftio` package currently provides orphan instances for types
+from the `resourcet` and `monad-logger` packages. This is not intended
+as a long-term solution; once `unliftio` is deemed more stable, the
+plan is to move those instances into the respective libraries and
+remove the dependency on them here.
+
+If there are other temporary orphans that should be added, please
+bring it up in the issue tracker or send a PR, but we'll need to be
+selective about adding dependencies.
