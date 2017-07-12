@@ -1,0 +1,6 @@
+# unliftio-core
+
+Provides the core `MonadUnliftIO` typeclass, instances for `base` and
+`transformers`, and basic utility functions. Typically, you'll want to use the
+[unliftio](https://www.stackage.org/package/unliftio) library, which provides
+more functionality (and a much better description).

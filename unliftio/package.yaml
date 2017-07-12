@@ -1,0 +1,41 @@
+name:                unliftio
+version:             0.1.0.0
+synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO (batteries included)
+description:         Please see the README.md file for details
+homepage:            https://github.com/fpco/monad-unlift/tree/master/unliftio#readme
+license:             MIT
+author:              Michael Snoyman, Francesco Mazzoli
+maintainer:          michael@snoyman.com
+copyright:           2017 FP Complete
+category:            Control
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+dependencies:
+  - base >= 4.7 && < 5
+  - async > 2.1.1
+  - deepseq
+  - directory
+  - filepath
+  - monad-logger
+  - resourcet
+  - transformers
+  - unliftio-core
+  - unix # FIXME make this a conditional dependency
+
+library:
+  source-dirs:
+  - src
+  exposed-modules:
+  - UnliftIO
+  - UnliftIO.Async
+  - UnliftIO.Chan
+  - UnliftIO.Exception
+  - UnliftIO.IO
+  - UnliftIO.IORef
+  - UnliftIO.Instances
+  - UnliftIO.MVar
+  - UnliftIO.Resource
+  - UnliftIO.Temporary
+  - UnliftIO.Timeout

@@ -1,0 +1,23 @@
+name:                unliftio-core
+version:             0.1.0.0
+synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO
+description:         Please see the README.md file for details
+homepage:            https://github.com/fpco/monad-unlift/tree/master/unliftio-core#readme
+license:             MIT
+author:              Michael Snoyman, Francesco Mazzoli
+maintainer:          michael@snoyman.com
+copyright:           2017 FP Complete
+category:            Control
+extra-source-files:
+- README.md
+- ChangeLog.md
+
+dependencies:
+  - base >= 4.5 && < 4.11
+  - transformers >= 0.2 && < 0.6
+
+library:
+  source-dirs:
+  - src
+  exposed-modules:
+  - Control.Monad.IO.Unlift

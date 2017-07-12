@@ -1,0 +1,4 @@
+resolver: lts-8.21
+packages:
+- unliftio
+- unliftio-core

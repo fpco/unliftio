@@ -18,3 +18,5 @@ cabal.sandbox.config
 .stack-work/
 cabal.project.local
 .HTF/
+unliftio/unliftio.cabal
+unliftio-core/unliftio-core.cabal
