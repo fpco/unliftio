@@ -359,3 +359,9 @@ remove the dependency on them here.
 If there are other temporary orphans that should be added, please
 bring it up in the issue tracker or send a PR, but we'll need to be
 selective about adding dependencies.
+
+## Future questions
+
+* Should we extend the set of functions exposed in `UnliftIO.IO` to include
+  things like `hSeek`?
+* Are there other libraries that deserve to be unlifted here?
