@@ -183,7 +183,7 @@ try f = catch (liftM Right f) (return . Left)
 -- | 'try' specialized to only catching 'IOException's
 --
 -- @since 0.1.0.0
-tryIO :: MonadUnliftIO m => m a -> m (Either SomeException a)
+tryIO :: MonadUnliftIO m => m a -> m (Either IOException a)
 tryIO = try
 
 -- | 'try' specialized to catch all synchronous exceptions
