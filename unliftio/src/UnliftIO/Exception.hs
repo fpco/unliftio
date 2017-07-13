@@ -466,10 +466,10 @@ uninterruptibleMask_ f = withRunInIO $ \run -> EUnsafe.uninterruptibleMask_ (run
 --
 -- @since 0.1.0.0
 #if MIN_VERSION_base(4,9,0)
-throwString :: (MonadUnliftIO m, HasCallStack) => String -> m a
+throwString :: (MonadIO m, HasCallStack) => String -> m a
 throwString s = throwIO (StringException s ?callStack)
 #else
-throwString :: MonadUnliftIO m => String -> m a
+throwString :: MonadIO m => String -> m a
 throwString s = throwIO (StringException s ())
 #endif
 
