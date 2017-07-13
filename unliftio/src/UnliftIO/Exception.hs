@@ -11,6 +11,7 @@ module UnliftIO.Exception
     throwIO
   , throwString
   , StringException (..)
+  , stringException
   , throwTo
   , impureThrow
   , fromEither
@@ -471,6 +472,18 @@ throwString s = throwIO (StringException s ?callStack)
 #else
 throwString :: MonadIO m => String -> m a
 throwString s = throwIO (StringException s ())
+#endif
+
+-- | Smart constructor for a 'StringException' that deals with the
+-- call stack.
+--
+-- @since 0.1.0.0
+#if MIN_VERSION_base(4,9,0)
+stringException :: HasCallStack => String -> StringException
+stringException s = StringException s ?callStack
+#else
+stringException :: String -> StringException
+stringException s = StringException s ()
 #endif
 
 -- | Exception type thrown by 'throwString'.
