@@ -8,6 +8,12 @@ Provides the core `MonadUnliftIO` typeclass, a number of common
 instances, and a collection of common functions working with it.  Not
 sure what the `MonadUnliftIO` typeclass is all about? Read on!
 
+__NOTE__ This library is young, and will likely undergo some serious changes
+over time. It's also very lightly tested. That said: the core concept of
+`MonadUnliftIO` has been refined for years and is pretty solid, and even though
+the code here is lightly tested, the vast majority of it is simply apply
+`withUnliftIO` to existing functionality. Caveat emptor and all that.
+
 ## Quickstart
 
 * Replace imports like `Control.Exception` with
