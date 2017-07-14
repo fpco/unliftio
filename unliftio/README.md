@@ -129,7 +129,7 @@ how to use `MonadUnliftIO` in practice. And for many cases, you can
 simply add the `MonadUnliftIO` constraint and then use the
 pre-unlifted versions of functions (like
 `UnliftIO.Exception.catch`). But ultimately, you'll probably want to
-use the typeclass directly. Here are some simple examples. First: ome
+use the typeclass directly. Here are some simple examples. First: some
 typeclass instances:
 
 ```haskell
@@ -167,6 +167,15 @@ and then call the original function with the user-supplied arguments,
 applying `run` as necessary.
 
 Thirdly, using `askUnliftIO` directly when multiple types are needed:
+
+```haskell
+race :: MonadUnliftIO m => m a -> m b -> m (Either a b)
+race a b = do
+  u <- askUnliftIO
+  liftIO (A.race (unliftIO u a) (unliftIO u b))
+```
+
+or more idiomatically using `withUnliftIO`:
 
 ```haskell
 race :: MonadUnliftIO m => m a -> m b -> m (Either a b)
