@@ -2,7 +2,7 @@ name:                unliftio-core
 version:             0.1.0.0
 synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO
 description:         Please see the README.md file for details
-homepage:            https://github.com/fpco/monad-unlift/tree/master/unliftio-core#readme
+homepage:            https://github.com/fpco/unliftio/tree/master/unliftio-core#readme
 license:             MIT
 author:              Michael Snoyman, Francesco Mazzoli
 maintainer:          michael@snoyman.com
