@@ -129,8 +129,20 @@ how to use `MonadUnliftIO` in practice. And for many cases, you can
 simply add the `MonadUnliftIO` constraint and then use the
 pre-unlifted versions of functions (like
 `UnliftIO.Exception.catch`). But ultimately, you'll probably want to
-use the typeclass directly. Here are some simple examples. First: some
-typeclass instances:
+use the typeclass directly. The type class has only one method --
+`askUnliftIO`:
+
+```haskell
+newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
+
+class MonadIO m => MonadUnliftIO m where
+  askUnliftIO :: m (UnliftIO m)
+```
+
+`askUnliftIO` gives us a function to run arbitrary computation in `m`
+in `IO`. Thus the "unlift": it's like `liftIO`, but the other way around.
+
+Here are some sample typeclass instances:
 
 ```haskell
 instance MonadUnliftIO IO where
@@ -155,7 +167,16 @@ Note that:
 * `ReaderT` is just like `IdentityT`, but it captures the reader
   environment when starting.
 
-Second, using `withRunInIO` to unlift a function:
+We can use `askUnliftIO` to unlift a function:
+
+```haskell
+timeout :: MonadUnliftIO m => Int -> m a -> m (Maybe a)
+timeout x y = do
+  u <- askUnliftIO
+  System.Timeout.timeout x $ unliftIO u y
+```
+
+or more concisely using `withRunIO`:
 
 ```haskell
 timeout :: MonadUnliftIO m => Int -> m a -> m (Maybe a)
@@ -164,9 +185,11 @@ timeout x y = withRunInIO $ \run -> System.Timeout.timeout x $ run y
 
 This is a common pattern: use `withRunInIO` to capture a run function,
 and then call the original function with the user-supplied arguments,
-applying `run` as necessary.
+applying `run` as necessary. `withRunIO` takes care of invoking
+`unliftIO` for us.
 
-Thirdly, using `askUnliftIO` directly when multiple types are needed:
+However, if we want to use the run function with different types, we
+must use `askUnliftIO`:
 
 ```haskell
 race :: MonadUnliftIO m => m a -> m b -> m (Either a b)
@@ -175,7 +198,7 @@ race a b = do
   liftIO (A.race (unliftIO u a) (unliftIO u b))
 ```
 
-or more idiomatically using `withUnliftIO`:
+or more idiomatically `withUnliftIO`:
 
 ```haskell
 race :: MonadUnliftIO m => m a -> m b -> m (Either a b)
@@ -187,7 +210,7 @@ of `run`, which is polymorphic. You _could_ get away with multiple
 `withRunInIO` calls here instead, but this approach is idiomatic and
 may be more performant (depending on optimizations).
 
-And finally, a much more complex usage, when unlifting the `mask`
+And finally, a more complex usage, when unlifting the `mask`
 function. This function needs to unlift vaues to be passed into the
 `restore` function, and then `liftIO` the result of the `restore`
 function.
@@ -293,7 +316,10 @@ reasons:
 
 * `MonadUnliftIO` is a simple typeclass, easy to explain. We don't
   want to complicated matters (`MonadBaseControl` is a notoriously
-  difficult to understand typeclass)
+  difficult to understand typeclass). This simplicity
+  is captured by the laws for `MonadUnliftIO`, which make the
+  behavior of the run functions close to that of the already familiar
+  `lift` and `liftIO`.
 * Having this kind of split would be confusing in user code, when
   suddenly `finally` is not available to us. We would rather encourage
   [good practices](https://www.fpcomplete.com/blog/2017/06/readert-design-pattern)
