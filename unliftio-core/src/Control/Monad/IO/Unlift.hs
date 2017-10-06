@@ -62,12 +62,15 @@ class MonadIO m => MonadUnliftIO m where
   -- Would be better, but GHC hates us
   -- askUnliftIO :: m (forall a. m a -> IO a)
 instance MonadUnliftIO IO where
+  {-# INLINE askUnliftIO #-}
   askUnliftIO = return (UnliftIO id)
 instance MonadUnliftIO m => MonadUnliftIO (ReaderT r m) where
+  {-# INLINE askUnliftIO #-}
   askUnliftIO = ReaderT $ \r ->
                 withUnliftIO $ \u ->
                 return (UnliftIO (unliftIO u . flip runReaderT r))
 instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
+  {-# INLINE askUnliftIO #-}
   askUnliftIO = IdentityT $
                 withUnliftIO $ \u ->
                 return (UnliftIO (unliftIO u . runIdentityT))
@@ -78,6 +81,7 @@ instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
 -- convenient.
 --
 -- @since 0.1.0.0
+{-# INLINE askRunInIO #-}
 askRunInIO :: MonadUnliftIO m => m (m a -> IO a)
 askRunInIO = liftM unliftIO askUnliftIO
 
@@ -85,6 +89,7 @@ askRunInIO = liftM unliftIO askUnliftIO
 -- an 'IO' action.
 --
 -- @since 0.1.0.0
+{-# INLINE withUnliftIO #-}
 withUnliftIO :: MonadUnliftIO m => (UnliftIO m -> IO a) -> m a
 withUnliftIO inner = askUnliftIO >>= liftIO . inner
 
@@ -92,11 +97,13 @@ withUnliftIO inner = askUnliftIO >>= liftIO . inner
 -- 'askRunInIO'.
 --
 -- @since 0.1.0.0
+{-# INLINE withRunInIO #-}
 withRunInIO :: MonadUnliftIO m => ((m a -> IO a) -> IO b) -> m b
 withRunInIO inner = askRunInIO >>= liftIO . inner
 
 -- | Convert an action in @m@ to an action in @IO@.
 --
 -- @since 0.1.0.0
+{-# INLINE toIO #-}
 toIO :: MonadUnliftIO m => m a -> m (IO a)
 toIO m = withRunInIO $ \run -> return $ run m
