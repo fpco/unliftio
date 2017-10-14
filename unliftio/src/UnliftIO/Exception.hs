@@ -94,7 +94,7 @@ import GHC.Stack (prettySrcLoc)
 import GHC.Stack.Types (HasCallStack, CallStack, getCallStack)
 #endif
 
--- | Unlifted 'EUnsafe.catch', but will not catch asynchronous exceptions
+-- | Unlifted 'EUnsafe.catch', but will not catch asynchronous exceptions.
 --
 -- @since 0.1.0.0
 catch :: (MonadUnliftIO m, Exception e) => m a -> (e -> m a) -> m a
@@ -105,13 +105,13 @@ catch f g = withUnliftIO $ \u -> unliftIO u f `EUnsafe.catch` \e ->
     -- since we want to preserve async behavior
     else EUnsafe.throwIO e
 
--- | 'catch' specialized to only catching 'IOException's
+-- | 'catch' specialized to only catching 'IOException's.
 --
 -- @since 0.1.0.0
 catchIO :: MonadUnliftIO m => m a -> (IOException -> m a) -> m a
 catchIO = catch
 
--- | 'catch' specialized to catch all synchronous exception
+-- | 'catch' specialized to catch all synchronous exception.
 --
 -- @since 0.1.0.0
 catchAny :: MonadUnliftIO m => m a -> (SomeException -> m a) -> m a
@@ -125,9 +125,9 @@ catchDeep :: (MonadUnliftIO m, Exception e, NFData a)
           => m a -> (e -> m a) -> m a
 catchDeep m = catch (m >>= evaluateDeep)
 
--- | 'catchDeep' specialized to catch all synchronous exception
+-- | 'catchDeep' specialized to catch all synchronous exception.
 --
--- @since 0.1.1.0
+-- @since 0.1.0.0
 catchAnyDeep :: (NFData a, MonadUnliftIO m) => m a -> (SomeException -> m a) -> m a
 catchAnyDeep = catchDeep
 
@@ -139,31 +139,31 @@ catchAnyDeep = catchDeep
 catchJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> m a -> (b -> m a) -> m a
 catchJust f a b = a `catch` \e -> maybe (liftIO (throwIO e)) b $ f e
 
--- | Flipped version of 'catch'
+-- | Flipped version of 'catch'.
 --
 -- @since 0.1.0.0
 handle :: (MonadUnliftIO m, Exception e) => (e -> m a) -> m a -> m a
 handle = flip catch
 
--- | 'C.handle' specialized to only catching 'IOException's
+-- | 'handle' specialized to only catching 'IOException's.
 --
 -- @since 0.1.0.0
 handleIO :: MonadUnliftIO m => (IOException -> m a) -> m a -> m a
 handleIO = handle
 
--- | Flipped version of 'catchAny'
+-- | Flipped version of 'catchAny'.
 --
 -- @since 0.1.0.0
 handleAny :: MonadUnliftIO m => (SomeException -> m a) -> m a -> m a
 handleAny = handle
 
--- | Flipped version of 'catchDeep'
+-- | Flipped version of 'catchDeep'.
 --
--- @since 0.1.1.0
+-- @since 0.1.0.0
 handleDeep :: (MonadUnliftIO m, Exception e, NFData a) => (e -> m a) -> m a -> m a
 handleDeep = flip catchDeep
 
--- | Flipped version of 'catchAnyDeep'
+-- | Flipped version of 'catchAnyDeep'.
 --
 -- @since 0.1.0.0
 handleAnyDeep :: (MonadUnliftIO m, NFData a) => (SomeException -> m a) -> m a -> m a
@@ -175,19 +175,19 @@ handleAnyDeep = flip catchAnyDeep
 handleJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> (b -> m a) -> m a -> m a
 handleJust f = flip (catchJust f)
 
--- | Unlifted 'EUnsafe.try', but will not catch asynchronous exceptions
+-- | Unlifted 'EUnsafe.try', but will not catch asynchronous exceptions.
 --
 -- @since 0.1.0.0
 try :: (MonadUnliftIO m, Exception e) => m a -> m (Either e a)
 try f = catch (liftM Right f) (return . Left)
 
--- | 'try' specialized to only catching 'IOException's
+-- | 'try' specialized to only catching 'IOException's.
 --
 -- @since 0.1.0.0
 tryIO :: MonadUnliftIO m => m a -> m (Either IOException a)
 tryIO = try
 
--- | 'try' specialized to catch all synchronous exceptions
+-- | 'try' specialized to catch all synchronous exceptions.
 --
 -- @since 0.1.0.0
 tryAny :: MonadUnliftIO m => m a -> m (Either SomeException a)
@@ -200,9 +200,9 @@ tryAny = try
 tryDeep :: (MonadUnliftIO m, Exception e, NFData a) => m a -> m (Either e a)
 tryDeep f = catch (liftM Right (f >>= evaluateDeep)) (return . Left)
 
--- | 'tryDeep' specialized to catch all synchronous exceptions
+-- | 'tryDeep' specialized to catch all synchronous exceptions.
 --
--- @since 0.1.1.0
+-- @since 0.1.0.0
 tryAnyDeep :: (MonadUnliftIO m, NFData a) => m a -> m (Either SomeException a)
 tryAnyDeep = tryDeep
 
@@ -213,12 +213,12 @@ tryAnyDeep = tryDeep
 tryJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> m a -> m (Either b a)
 tryJust f a = catch (Right `liftM` a) (\e -> maybe (throwIO e) (return . Left) (f e))
 
--- | Generalized version of 'EUnsafe.Handler'
+-- | Generalized version of 'EUnsafe.Handler'.
 --
 -- @since 0.1.0.0
 data Handler m a = forall e . Exception e => Handler (e -> m a)
 
--- | Internal
+-- | Internal.
 catchesHandler :: MonadIO m => [Handler m a] -> SomeException -> m a
 catchesHandler handlers e = foldr tryHandler (liftIO (EUnsafe.throwIO e)) handlers
     where tryHandler (Handler handler) res
@@ -227,7 +227,7 @@ catchesHandler handlers e = foldr tryHandler (liftIO (EUnsafe.throwIO e)) handle
                 Nothing -> res
 
 -- | Same as upstream 'EUnsafe.catches', but will not catch
--- asynchronous exceptions
+-- asynchronous exceptions.
 --
 -- @since 0.1.0.0
 catches :: MonadUnliftIO m => m a -> [Handler m a] -> m a
@@ -240,7 +240,9 @@ catches io handlers = io `catch` catchesHandler handlers
 catchesDeep :: (MonadUnliftIO m, NFData a) => m a -> [Handler m a] -> m a
 catchesDeep io handlers = (io >>= evaluateDeep) `catch` catchesHandler handlers
 
--- | Lifted version of 'EUnsafe.evaluate'
+-- | Lifted version of 'EUnsafe.evaluate'.
+--
+-- @since 0.1.0.0
 evaluate :: MonadIO m => a -> m a
 evaluate = liftIO . EUnsafe.evaluate
 
@@ -250,7 +252,7 @@ evaluate = liftIO . EUnsafe.evaluate
 evaluateDeep :: (MonadIO m, NFData a) => a -> m a
 evaluateDeep = (evaluate $!!)
 
--- | Async safe version of 'EUnsafe.bracket'
+-- | Async safe version of 'EUnsafe.bracket'.
 --
 -- @since 0.1.0.0
 bracket :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
@@ -271,13 +273,13 @@ bracket before after thing = withUnliftIO $ \u -> EUnsafe.mask $ \restore -> do
       _ <- EUnsafe.uninterruptibleMask_ $ unliftIO u $ after x
       return y
 
--- | Async safe version of 'EUnsafe.bracket_'
+-- | Async safe version of 'EUnsafe.bracket_'.
 --
 -- @since 0.1.0.0
 bracket_ :: MonadUnliftIO m => m a -> m b -> m c -> m c
 bracket_ before after thing = bracket before (const after) (const thing)
 
--- | Async safe version of 'EUnsafe.bracketOnError'
+-- | Async safe version of 'EUnsafe.bracketOnError'.
 --
 -- @since 0.1.0.0
 bracketOnError :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
@@ -299,7 +301,7 @@ bracketOnError before after thing = withUnliftIO $ \u -> EUnsafe.mask $ \restore
 bracketOnError_ :: MonadUnliftIO m => m a -> m b -> m c -> m c
 bracketOnError_ before after thing = bracketOnError before (const after) (const thing)
 
--- | Async safe version of 'EUnsafe.finally'
+-- | Async safe version of 'EUnsafe.finally'.
 --
 -- @since 0.1.0.0
 finally :: MonadUnliftIO m => m a -> m b -> m a
@@ -329,38 +331,40 @@ withException thing after = withUnliftIO $ \u -> EUnsafe.uninterruptibleMask $ \
             EUnsafe.throwIO e1
         Right x -> return x
 
--- | Async safe version of 'EUnsafe.onException'
+-- | Async safe version of 'EUnsafe.onException'.
 --
 -- @since 0.1.0.0
 onException :: MonadUnliftIO m => m a -> m b -> m a
 onException thing after = withException thing (\(_ :: SomeException) -> after)
 
--- | Synchronously throw the given exception
+-- | Synchronously throw the given exception.
 --
 -- @since 0.1.0.0
 throwIO :: (MonadIO m, Exception e) => e -> m a
 throwIO = liftIO . EUnsafe.throwIO . toSyncException
 
 -- | Wrap up an asynchronous exception to be treated as a synchronous
--- exception
+-- exception.
 --
--- This is intended to be created via 'toSyncException'
+-- This is intended to be created via 'toSyncException'.
 --
 -- @since 0.1.0.0
 data SyncExceptionWrapper = forall e. Exception e => SyncExceptionWrapper e
     deriving Typeable
+-- | @since 0.1.0.0
 instance Show SyncExceptionWrapper where
     show (SyncExceptionWrapper e) = show e
+-- | @since 0.1.0.0
 instance Exception SyncExceptionWrapper where
 #if MIN_VERSION_base(4,8,0)
     displayException (SyncExceptionWrapper e) = displayException e
 #endif
 
--- | Convert an exception into a synchronous exception
+-- | Convert an exception into a synchronous exception.
 --
 -- For synchronous exceptions, this is the same as 'toException'.
 -- For asynchronous exceptions, this will wrap up the exception with
--- 'SyncExceptionWrapper'
+-- 'SyncExceptionWrapper'.
 --
 -- @since 0.1.0.0
 toSyncException :: Exception e => e -> SomeException
@@ -372,15 +376,17 @@ toSyncException e =
     se = toException e
 
 -- | Wrap up a synchronous exception to be treated as an asynchronous
--- exception
+-- exception.
 --
--- This is intended to be created via 'toAsyncException'
+-- This is intended to be created via 'toAsyncException'.
 --
 -- @since 0.1.0.0
 data AsyncExceptionWrapper = forall e. Exception e => AsyncExceptionWrapper e
     deriving Typeable
+-- | @since 0.1.0.0
 instance Show AsyncExceptionWrapper where
     show (AsyncExceptionWrapper e) = show e
+-- | @since 0.1.0.0
 instance Exception AsyncExceptionWrapper where
     toException = toException . SomeAsyncException
     fromException se = do
@@ -390,11 +396,11 @@ instance Exception AsyncExceptionWrapper where
     displayException (AsyncExceptionWrapper e) = displayException e
 #endif
 
--- | Convert an exception into an asynchronous exception
+-- | Convert an exception into an asynchronous exception.
 --
 -- For asynchronous exceptions, this is the same as 'toException'.
 -- For synchronous exceptions, this will wrap up the exception with
--- 'AsyncExceptionWrapper'
+-- 'AsyncExceptionWrapper'.
 --
 -- @since 0.1.0.0
 toAsyncException :: Exception e => e -> SomeException
@@ -405,7 +411,7 @@ toAsyncException e =
   where
     se = toException e
 
--- | Check if the given exception is synchronous
+-- | Check if the given exception is synchronous.
 --
 -- @since 0.1.0.0
 isSyncException :: Exception e => e -> Bool
@@ -414,7 +420,7 @@ isSyncException e =
         Just (SomeAsyncException _) -> False
         Nothing -> True
 
--- | Check if the given exception is asynchronous
+-- | Check if the given exception is asynchronous.
 --
 -- @since 0.1.0.0
 isAsyncException :: Exception e => e -> Bool
@@ -424,34 +430,37 @@ isAsyncException = not . isSyncException
 #if !MIN_VERSION_base(4,8,0)
 -- | A synonym for 'show', specialized to 'Exception' instances.
 --
--- Starting with base 4.8, the 'Exception' typeclass has a method @displayException@, used for user-friendly display of exceptions. This function provides backwards compatibility for users on base 4.7 and earlier, so that anyone importing this module can simply use @displayException@.
+-- Starting with base 4.8, the 'Exception' typeclass has a method
+-- @displayException@, used for user-friendly display of exceptions.
+-- This function provides backwards compatibility for users on base 4.7 and earlier,
+-- so that anyone importing this module can simply use @displayException@.
 --
 -- @since 0.1.0.0
 displayException :: Exception e => e -> String
 displayException = show
 #endif
 
--- | Unlifted version of 'EUnsafe.mask'
+-- | Unlifted version of 'EUnsafe.mask'.
 --
 -- @since 0.1.0.0
 mask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m b) -> m b
 mask f = withUnliftIO $ \u -> EUnsafe.mask $ \unmask ->
   unliftIO u $ f $ liftIO . unmask . unliftIO u
 
--- | Unlifted version of 'EUnsafe.uninterruptibleMask'
+-- | Unlifted version of 'EUnsafe.uninterruptibleMask'.
 --
 -- @since 0.1.0.0
 uninterruptibleMask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m b) -> m b
 uninterruptibleMask f = withUnliftIO $ \u -> EUnsafe.uninterruptibleMask $ \unmask ->
   unliftIO u $ f $ liftIO . unmask . unliftIO u
 
--- | Unlifted version of 'EUnsafe.mask_'
+-- | Unlifted version of 'EUnsafe.mask_'.
 --
 -- @since 0.1.0.0
 mask_ :: MonadUnliftIO m => m a -> m a
 mask_ f = withRunInIO $ \run -> EUnsafe.mask_ (run f)
 
--- | Unlifted version of 'EUnsafe.uninterruptibleMask_'
+-- | Unlifted version of 'EUnsafe.uninterruptibleMask_'.
 --
 -- @since 0.1.0.0
 uninterruptibleMask_ :: MonadUnliftIO m => m a -> m a
@@ -494,11 +503,12 @@ stringException s = StringException s ()
 -- support call stacks, and the field is simply unit (provided to make
 -- pattern matching across GHC versions easier).
 --
--- @since 0.1.5.0
+-- @since 0.1.0.0
 #if MIN_VERSION_base(4,9,0)
 data StringException = StringException String CallStack
   deriving Typeable
 
+-- | @since 0.1.0.0
 instance Show StringException where
     show (StringException s cs) = concat
         $ "Control.Exception.Safe.throwString called with:\n\n"
@@ -517,29 +527,32 @@ instance Show StringException where
 data StringException = StringException String ()
   deriving Typeable
 
+-- | @since 0.1.0.0
 instance Show StringException where
     show (StringException s _) = "Control.Exception.Safe.throwString called with:\n\n" ++ s
 #endif
+
+-- | @since 0.1.0.0
 instance Exception StringException
 
 -- | Throw an asynchronous exception to another thread.
 --
 -- Synchronously typed exceptions will be wrapped into an
 -- `AsyncExceptionWrapper`, see
--- <https://github.com/fpco/safe-exceptions#determining-sync-vs-async>
+-- <https://github.com/fpco/safe-exceptions#determining-sync-vs-async>.
 --
--- It's usually a better idea to use the async package, see
--- <https://github.com/fpco/safe-exceptions#quickstart>
+-- It's usually a better idea to use the "UnliftIO.Async" module, see
+-- <https://github.com/fpco/safe-exceptions#quickstart>.
 --
 -- @since 0.1.0.0
 throwTo :: (Exception e, MonadIO m) => ThreadId -> e -> m ()
 throwTo tid = liftIO . EUnsafe.throwTo tid . toAsyncException
 
 -- | Generate a pure value which, when forced, will synchronously
--- throw the given exception
+-- throw the given exception.
 --
--- Generally it's better to avoid using this function and instead use 'throw',
--- see <https://github.com/fpco/safe-exceptions#quickstart>
+-- Generally it's better to avoid using this function and instead use 'throwIO',
+-- see <https://github.com/fpco/safe-exceptions#quickstart>.
 --
 -- @since 0.1.0.0
 impureThrow :: Exception e => e -> a
