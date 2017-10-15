@@ -1,7 +1,7 @@
 {-# LANGUAgE CPP #-}
--- | Temporary file and directory support
+-- | Temporary file and directory support.
 --
--- Strongly inspired by/stolen from the temporary package
+-- Strongly inspired by\/stolen from the <https://github.com/feuerbach/temporary> package.
 --
 -- @since 0.1.0.0
 module UnliftIO.Temporary
@@ -46,7 +46,7 @@ withSystemTempFile template action = liftIO getCanonicalTemporaryDirectory >>= \
 -- @since 0.1.0.0
 withSystemTempDirectory :: MonadUnliftIO m =>
                            String   -- ^ Directory name template. See 'openTempFile'.
-                        -> (FilePath -> m a) -- ^ Callback that can use the directory
+                        -> (FilePath -> m a) -- ^ Callback that can use the directory.
                         -> m a
 withSystemTempDirectory template action = liftIO getCanonicalTemporaryDirectory >>= \tmpDir -> withTempDirectory tmpDir template action
 
@@ -63,9 +63,9 @@ withSystemTempDirectory template action = liftIO getCanonicalTemporaryDirectory 
 --
 -- @since 0.1.0.0
 withTempFile :: MonadUnliftIO m =>
-                FilePath -- ^ Temp dir to create the file in
+                FilePath -- ^ Temp dir to create the file in.
              -> String   -- ^ File name template. See 'openTempFile'.
-             -> (FilePath -> Handle -> m a) -- ^ Callback that can use the file
+             -> (FilePath -> Handle -> m a) -- ^ Callback that can use the file.
              -> m a
 withTempFile tmpDir template action =
   bracket
@@ -85,9 +85,9 @@ withTempFile tmpDir template action =
 --
 -- @since 0.1.0.0
 withTempDirectory :: MonadUnliftIO m =>
-                     FilePath -- ^ Temp directory to create the directory in
+                     FilePath -- ^ Temp directory to create the directory in.
                   -> String   -- ^ Directory name template. See 'openTempFile'.
-                  -> (FilePath -> m a) -- ^ Callback that can use the directory
+                  -> (FilePath -> m a) -- ^ Callback that can use the directory.
                   -> m a
 withTempDirectory targetDir template =
   bracket
@@ -108,8 +108,8 @@ getCanonicalTemporaryDirectory = getTemporaryDirectory >>= canonicalizePath
 
 -- | Create a temporary directory. See 'withTempDirectory'.
 createTempDirectory
-  :: FilePath -- ^ Temp directory to create the directory in
-  -> String -- ^ Directory name template
+  :: FilePath -- ^ Temp directory to create the directory in.
+  -> String -- ^ Directory name template.
   -> IO FilePath
 createTempDirectory dir template = do
   pid <- c_getpid

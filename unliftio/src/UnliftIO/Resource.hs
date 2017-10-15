@@ -1,4 +1,4 @@
--- | Unlifted "Control.Monad.Trans.Resource"
+-- | Unlifted "Control.Monad.Trans.Resource".
 --
 -- @since 0.1.0.0
 module UnliftIO.Resource
@@ -15,10 +15,14 @@ import Control.Monad.Trans.Resource.Internal (ResourceT (..))
 import Control.Monad.IO.Unlift
 import UnliftIO.Instances ()
 
--- | @since 0.1.0.0
+-- | Unlifted version of 'Res.runResourceT'.
+--
+-- @since 0.1.0.0
 runResourceT :: MonadUnliftIO m => ResourceT m a -> m a
 runResourceT m = withRunInIO $ \run -> Res.runResourceT $ Res.transResourceT run m
 
--- | @since 0.1.0.0
-liftResourceT :: MonadIO m => ResourceT IO a -> Res.ResourceT m a
+-- | Lifted version of 'Res.liftResourceT'.
+--
+-- @since 0.1.0.0
+liftResourceT :: MonadIO m => ResourceT IO a -> ResourceT m a
 liftResourceT (ResourceT f) = ResourceT $ liftIO . f
