@@ -2,6 +2,7 @@
 
 * Doc improvements.
 * Fix `UnliftIO.Chan` type signatures [#3](https://github.com/fpco/unliftio/pull/3).
+* Add `UnliftIO.Concurrent` module [#5](https://github.com/fpco/unliftio/pull/5).
 
 ## 0.1.0.0
 
