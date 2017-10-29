@@ -20,6 +20,7 @@ module UnliftIO.MVar
   , modifyMVarMasked_
   , tryReadMVar
   , mkWeakMVar
+  , runOnce
   ) where
 
 import System.Mem.Weak (Weak)
@@ -128,3 +129,19 @@ modifyMVarMasked var f = withRunInIO $ \run -> M.modifyMVarMasked var (run . f)
 -- @since 0.1.0.0
 mkWeakMVar :: MonadUnliftIO m => MVar a -> m () -> m (Weak (MVar a))
 mkWeakMVar var f = withRunInIO $ \run -> M.mkWeakMVar var (run f)
+
+-- | Run an action exactly once and cache its result. The action will
+-- be run the first time the value is requested. If an exception is
+-- thrown, the action will be retried. Only one thread will attempt to
+-- run the action at a time.
+--
+-- @since 0.1.2.0
+runOnce :: (MonadUnliftIO m, MonadIO n) => m a -> m (n a)
+runOnce f = withRunInIO $ \run -> do
+  var <- newMVar Nothing
+  return $ liftIO $ modifyMVar var $ \ma ->
+    case ma of
+      Just a -> return (ma, a)
+      Nothing -> do
+        a <- run f
+        return (Just a, a)

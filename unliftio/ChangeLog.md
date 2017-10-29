@@ -1,3 +1,7 @@
+## 0.1.2.0
+
+* Added `runOnce`
+
 ## 0.1.1.0
 
 * Doc improvements.
