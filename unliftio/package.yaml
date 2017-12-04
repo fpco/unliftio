@@ -18,7 +18,6 @@ dependencies:
   - deepseq
   - directory
   - filepath
-  - resourcet
   - transformers
   - unliftio-core
 
