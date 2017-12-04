@@ -29,16 +29,3 @@ when:
 library:
   source-dirs:
   - src
-  exposed-modules:
-  - UnliftIO
-  - UnliftIO.Async
-  - UnliftIO.Chan
-  - UnliftIO.Concurrent
-  - UnliftIO.Exception
-  - UnliftIO.IO
-  - UnliftIO.IORef
-  - UnliftIO.Instances
-  - UnliftIO.MVar
-  - UnliftIO.Resource
-  - UnliftIO.Temporary
-  - UnliftIO.Timeout
