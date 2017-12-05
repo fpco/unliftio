@@ -1,3 +1,7 @@
+## 0.2.1.0
+
+* Add `UnliftIO.STM`
+
 ## 0.2.0.0
 
 * Remove `monad-logger` instances (moved into `monad-logger` itself in
