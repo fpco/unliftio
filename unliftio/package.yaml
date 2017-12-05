@@ -1,5 +1,5 @@
 name:                unliftio
-version:             0.1.1.0
+version:             0.2.0.0
 synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO (batteries included)
 description:         Please see the README.md file for details.
 homepage:            https://github.com/fpco/unliftio/tree/master/unliftio#readme
@@ -18,8 +18,6 @@ dependencies:
   - deepseq
   - directory
   - filepath
-  - monad-logger
-  - resourcet
   - transformers
   - unliftio-core
 
@@ -31,16 +29,3 @@ when:
 library:
   source-dirs:
   - src
-  exposed-modules:
-  - UnliftIO
-  - UnliftIO.Async
-  - UnliftIO.Chan
-  - UnliftIO.Concurrent
-  - UnliftIO.Exception
-  - UnliftIO.IO
-  - UnliftIO.IORef
-  - UnliftIO.Instances
-  - UnliftIO.MVar
-  - UnliftIO.Resource
-  - UnliftIO.Temporary
-  - UnliftIO.Timeout
