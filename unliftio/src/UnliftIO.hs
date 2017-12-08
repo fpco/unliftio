@@ -6,6 +6,7 @@ module UnliftIO
   , module UnliftIO.IO
   , module UnliftIO.IORef
   , module UnliftIO.MVar
+  , module UnliftIO.STM
   , module UnliftIO.Temporary
   , module UnliftIO.Timeout
   ) where
@@ -17,5 +18,6 @@ import UnliftIO.Exception
 import UnliftIO.IO
 import UnliftIO.IORef
 import UnliftIO.MVar
+import UnliftIO.STM
 import UnliftIO.Temporary
 import UnliftIO.Timeout

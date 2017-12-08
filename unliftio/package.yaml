@@ -18,6 +18,7 @@ dependencies:
   - deepseq
   - directory
   - filepath
+  - stm >= 2.4.3
   - transformers
   - unliftio-core
 
