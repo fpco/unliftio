@@ -1,6 +1,7 @@
 ## 0.2.1.0
 
 * Add `UnliftIO.STM`
+* Add a number of functions to `UnliftIO.IO`
 
 ## 0.2.0.0
 
