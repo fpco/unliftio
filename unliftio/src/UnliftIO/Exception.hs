@@ -38,6 +38,8 @@ module UnliftIO.Exception
   , tryDeep
   , tryAnyDeep
   , tryJust
+  , pureTry
+  , pureTryDeep
 
   , Handler(..)
   , catches
@@ -88,6 +90,7 @@ import Control.Exception (Exception (..), SomeException (..), IOException, SomeA
 import qualified Control.Exception as EUnsafe
 import Control.DeepSeq (NFData (..), ($!!))
 import Data.Typeable (Typeable, cast)
+import System.IO.Unsafe (unsafePerformIO)
 
 #if MIN_VERSION_base(4,9,0)
 import GHC.Stack (prettySrcLoc)
@@ -212,6 +215,21 @@ tryAnyDeep = tryDeep
 -- @since 0.1.0.0
 tryJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> m a -> m (Either b a)
 tryJust f a = catch (Right `liftM` a) (\e -> maybe (throwIO e) (return . Left) (f e))
+
+-- | Evaluate the value to WHNF and catch any synchronous exceptions.
+--
+-- The expression may still have bottom values within it; you may
+-- instead want to use 'pureTryDeep'.
+--
+-- @since 0.2.2.0
+pureTry :: a -> Either SomeException a
+pureTry a = unsafePerformIO $ (return $! Right $! a) `catchAny` (return . Left)
+
+-- | Evaluate the value to NF and catch any synchronous exceptions.
+--
+-- @since 0.2.2.0
+pureTryDeep :: NFData a => a -> Either SomeException a
+pureTryDeep = unsafePerformIO . tryAnyDeep . return
 
 -- | Generalized version of 'EUnsafe.Handler'.
 --
