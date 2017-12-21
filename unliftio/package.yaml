@@ -30,3 +30,12 @@ when:
 library:
   source-dirs:
   - src
+
+tests:
+  unliftio-spec:
+    source-dirs:
+    - test
+    main: Spec.hs
+    dependencies:
+    - hspec
+    - unliftio
