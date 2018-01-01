@@ -63,14 +63,14 @@ forkIO m = withRunInIO $ \run -> C.forkIO $ run m
 -- @since 0.1.1.0
 forkWithUnmask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m ()) -> m ThreadId
 forkWithUnmask m =
-  withUnliftIO $ \u -> C.forkIOWithUnmask $ \unmask -> unliftIO u $ m $ liftIO . unmask . unliftIO u
+  withRunInIO $ \run -> C.forkIOWithUnmask $ \unmask -> run $ m $ liftIO . unmask . run
 {-# INLINABLE forkWithUnmask #-}
 
 -- | Unlifted version of 'C.forkFinally'.
 --
 -- @since 0.1.1.0
 forkFinally :: MonadUnliftIO m => m a -> (Either SomeException a -> m ()) -> m ThreadId
-forkFinally m1 m2 = withUnliftIO $ \u -> C.forkFinally (unliftIO u m1) $ unliftIO u . m2
+forkFinally m1 m2 = withRunInIO $ \run -> C.forkFinally (run m1) $ run . m2
 {-# INLINABLE forkFinally #-}
 
 -- | Lifted version of 'C.killThread'.
@@ -92,7 +92,7 @@ forkOn i m = withRunInIO $ \run -> C.forkOn i $ run m
 -- @since 0.1.1.0
 forkOnWithUnmask :: MonadUnliftIO m => Int -> ((forall a. m a -> m a) -> m ()) -> m ThreadId
 forkOnWithUnmask i m =
-  withUnliftIO $ \u -> C.forkOnWithUnmask i $ \unmask -> unliftIO u $ m $ liftIO . unmask . unliftIO u
+  withRunInIO $ \run -> C.forkOnWithUnmask i $ \unmask -> run $ m $ liftIO . unmask . run
 {-# INLINABLE forkOnWithUnmask #-}
 
 -- | Lifted version of 'C.getNumCapabilities'.
