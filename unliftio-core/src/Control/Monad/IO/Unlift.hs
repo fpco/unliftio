@@ -86,7 +86,8 @@ askRunInIO :: MonadUnliftIO m => m (m a -> IO a)
 askRunInIO = liftM unliftIO askUnliftIO
 
 -- | Convenience function for capturing the monadic context and running
--- an 'IO' action.
+-- an 'IO' action. The 'UnliftIO' newtype wrapper is rarely needed, so
+-- prefer 'withRunInIO' to this function.
 --
 -- @since 0.1.0.0
 {-# INLINE withUnliftIO #-}
