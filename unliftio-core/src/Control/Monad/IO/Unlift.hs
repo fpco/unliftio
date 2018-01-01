@@ -93,13 +93,13 @@ askRunInIO = liftM unliftIO askUnliftIO
 withUnliftIO :: MonadUnliftIO m => (UnliftIO m -> IO a) -> m a
 withUnliftIO inner = askUnliftIO >>= liftIO . inner
 
--- | Same as 'withUnliftIO', but uses a monomorphic function like
--- 'askRunInIO'.
+-- | Same as 'withUnliftIO', but uses a polymorphic function
+-- without the newtype wrapper.
 --
 -- @since 0.1.0.0
 {-# INLINE withRunInIO #-}
-withRunInIO :: MonadUnliftIO m => ((m a -> IO a) -> IO b) -> m b
-withRunInIO inner = askRunInIO >>= liftIO . inner
+withRunInIO :: MonadUnliftIO m => ((forall a. m a -> IO a) -> IO b) -> m b
+withRunInIO inner = withUnliftIO $ \u -> inner (unliftIO u)
 
 -- | Convert an action in @m@ to an action in @IO@.
 --
