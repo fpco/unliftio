@@ -188,37 +188,23 @@ and then call the original function with the user-supplied arguments,
 applying `run` as necessary. `withRunIO` takes care of invoking
 `unliftIO` for us.
 
-However, if we want to use the run function with different types, we
-must use `askUnliftIO`:
+We can also use the run function with different types due to
+`withRunInIO` being higher-rank polymorphic:
 
 ```haskell
 race :: MonadUnliftIO m => m a -> m b -> m (Either a b)
-race a b = do
-  u <- askUnliftIO
-  liftIO (A.race (unliftIO u a) (unliftIO u b))
+race a b = withRunInIO $ \run -> A.race (run a) (run b)
 ```
-
-or more idiomatically `withUnliftIO`:
-
-```haskell
-race :: MonadUnliftIO m => m a -> m b -> m (Either a b)
-race a b = withUnliftIO $ \u -> A.race (unliftIO u a) (unliftIO u b)
-```
-
-This works just like `withRunIO`, except we use `unliftIO u` instead
-of `run`, which is polymorphic. You _could_ get away with multiple
-`withRunInIO` calls here instead, but this approach is idiomatic and
-may be more performant (depending on optimizations).
 
 And finally, a more complex usage, when unlifting the `mask`
-function. This function needs to unlift vaues to be passed into the
+function. This function needs to unlift values to be passed into the
 `restore` function, and then `liftIO` the result of the `restore`
 function.
 
 ```haskell
 mask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m b) -> m b
-mask f = withUnliftIO $ \u -> Control.Exception.mask $ \unmask ->
-  unliftIO u $ f $ liftIO . unmask . unliftIO u
+mask f = withRunInIO $ \run -> Control.Exception.mask $ \restore ->
+  run $ f $ liftIO . restore . run
 ```
 
 ## Limitations

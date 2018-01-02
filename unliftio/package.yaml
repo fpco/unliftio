@@ -20,7 +20,7 @@ dependencies:
   - filepath
   - stm >= 2.4.3
   - transformers
-  - unliftio-core
+  - unliftio-core >= 0.1.1.0
 
 when:
 - condition: "!os(Windows)"

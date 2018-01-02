@@ -101,9 +101,9 @@ import GHC.Stack.Types (HasCallStack, CallStack, getCallStack)
 --
 -- @since 0.1.0.0
 catch :: (MonadUnliftIO m, Exception e) => m a -> (e -> m a) -> m a
-catch f g = withUnliftIO $ \u -> unliftIO u f `EUnsafe.catch` \e ->
+catch f g = withRunInIO $ \run -> run f `EUnsafe.catch` \e ->
   if isSyncException e
-    then unliftIO u (g e)
+    then run (g e)
     -- intentionally rethrowing an async exception synchronously,
     -- since we want to preserve async behavior
     else EUnsafe.throwIO e
@@ -274,9 +274,9 @@ evaluateDeep = (evaluate $!!)
 --
 -- @since 0.1.0.0
 bracket :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
-bracket before after thing = withUnliftIO $ \u -> EUnsafe.mask $ \restore -> do
-  x <- unliftIO u before
-  res1 <- EUnsafe.try $ restore $ unliftIO u $ thing x
+bracket before after thing = withRunInIO $ \run -> EUnsafe.mask $ \restore -> do
+  x <- run before
+  res1 <- EUnsafe.try $ restore $ run $ thing x
   case res1 of
     Left (e1 :: SomeException) -> do
       -- explicitly ignore exceptions from after. We know that
@@ -285,10 +285,10 @@ bracket before after thing = withUnliftIO $ \u -> EUnsafe.mask $ \restore -> do
       --
       -- https://github.com/fpco/safe-exceptions/issues/2
       _ :: Either SomeException b <-
-          EUnsafe.try $ EUnsafe.uninterruptibleMask_ $ unliftIO u $ after x
+          EUnsafe.try $ EUnsafe.uninterruptibleMask_ $ run $ after x
       EUnsafe.throwIO e1
     Right y -> do
-      _ <- EUnsafe.uninterruptibleMask_ $ unliftIO u $ after x
+      _ <- EUnsafe.uninterruptibleMask_ $ run $ after x
       return y
 
 -- | Async safe version of 'EUnsafe.bracket_'.
@@ -301,14 +301,14 @@ bracket_ before after thing = bracket before (const after) (const thing)
 --
 -- @since 0.1.0.0
 bracketOnError :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
-bracketOnError before after thing = withUnliftIO $ \u -> EUnsafe.mask $ \restore -> do
-  x <- unliftIO u before
-  res1 <- EUnsafe.try $ restore $ unliftIO u $ thing x
+bracketOnError before after thing = withRunInIO $ \run -> EUnsafe.mask $ \restore -> do
+  x <- run before
+  res1 <- EUnsafe.try $ restore $ run $ thing x
   case res1 of
     Left (e1 :: SomeException) -> do
       -- ignore the exception, see bracket for explanation
       _ :: Either SomeException b <-
-        EUnsafe.try $ EUnsafe.uninterruptibleMask_ $ unliftIO u $ after x
+        EUnsafe.try $ EUnsafe.uninterruptibleMask_ $ run $ after x
       EUnsafe.throwIO e1
     Right y -> return y
 
@@ -323,15 +323,15 @@ bracketOnError_ before after thing = bracketOnError before (const after) (const 
 --
 -- @since 0.1.0.0
 finally :: MonadUnliftIO m => m a -> m b -> m a
-finally thing after = withUnliftIO $ \u -> EUnsafe.uninterruptibleMask $ \restore -> do
-  res1 <- EUnsafe.try $ restore $ unliftIO u thing
+finally thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \restore -> do
+  res1 <- EUnsafe.try $ restore $ run thing
   case res1 of
     Left (e1 :: SomeException) -> do
       -- see bracket for explanation
-      _ :: Either SomeException b <- EUnsafe.try $ unliftIO u after
+      _ :: Either SomeException b <- EUnsafe.try $ run after
       EUnsafe.throwIO e1
     Right x -> do
-      _ <- unliftIO u after
+      _ <- run after
       return x
 
 -- | Like 'onException', but provides the handler the thrown
@@ -340,12 +340,12 @@ finally thing after = withUnliftIO $ \u -> EUnsafe.uninterruptibleMask $ \restor
 -- @since 0.1.0.0
 withException :: (MonadUnliftIO m, Exception e)
               => m a -> (e -> m b) -> m a
-withException thing after = withUnliftIO $ \u -> EUnsafe.uninterruptibleMask $ \restore -> do
-    res1 <- EUnsafe.try $ restore $ unliftIO u thing
+withException thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \restore -> do
+    res1 <- EUnsafe.try $ restore $ run thing
     case res1 of
         Left e1 -> do
             -- see explanation in bracket
-            _ :: Either SomeException b <- EUnsafe.try $ unliftIO u $ after e1
+            _ :: Either SomeException b <- EUnsafe.try $ run $ after e1
             EUnsafe.throwIO e1
         Right x -> return x
 
@@ -462,15 +462,15 @@ displayException = show
 --
 -- @since 0.1.0.0
 mask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m b) -> m b
-mask f = withUnliftIO $ \u -> EUnsafe.mask $ \unmask ->
-  unliftIO u $ f $ liftIO . unmask . unliftIO u
+mask f = withRunInIO $ \run -> EUnsafe.mask $ \unmask ->
+  run $ f $ liftIO . unmask . run
 
 -- | Unlifted version of 'EUnsafe.uninterruptibleMask'.
 --
 -- @since 0.1.0.0
 uninterruptibleMask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m b) -> m b
-uninterruptibleMask f = withUnliftIO $ \u -> EUnsafe.uninterruptibleMask $ \unmask ->
-  unliftIO u $ f $ liftIO . unmask . unliftIO u
+uninterruptibleMask f = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \unmask ->
+  run $ f $ liftIO . unmask . run
 
 -- | Unlifted version of 'EUnsafe.mask_'.
 --

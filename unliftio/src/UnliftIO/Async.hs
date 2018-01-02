@@ -85,32 +85,32 @@ asyncOn i m = withRunInIO $ \run -> A.asyncOn i $ run m
 -- @since 0.1.0.0
 asyncWithUnmask :: MonadUnliftIO m => ((forall b. m b -> m b) -> m a) -> m (Async a)
 asyncWithUnmask m =
-  withUnliftIO $ \u -> A.asyncWithUnmask $ \unmask -> unliftIO u $ m $ liftIO . unmask . unliftIO u
+  withRunInIO $ \run -> A.asyncWithUnmask $ \unmask -> run $ m $ liftIO . unmask . run
 
 -- | Unlifted 'A.asyncOnWithUnmask'.
 --
 -- @since 0.1.0.0
 asyncOnWithUnmask :: MonadUnliftIO m => Int -> ((forall b. m b -> m b) -> m a) -> m (Async a)
 asyncOnWithUnmask i m =
-  withUnliftIO $ \u -> A.asyncOnWithUnmask i $ \unmask -> unliftIO u $ m $ liftIO . unmask . unliftIO u
+  withRunInIO $ \run -> A.asyncOnWithUnmask i $ \unmask -> run $ m $ liftIO . unmask . run
 
 -- | Unlifted 'A.withAsync'.
 --
 -- @since 0.1.0.0
 withAsync :: MonadUnliftIO m => m a -> (Async a -> m b) -> m b
-withAsync a b = withUnliftIO $ \u -> A.withAsync (unliftIO u a) (unliftIO u . b)
+withAsync a b = withRunInIO $ \run -> A.withAsync (run a) (run . b)
 
 -- | Unlifted 'A.withAsyncBound'.
 --
 -- @since 0.1.0.0
 withAsyncBound :: MonadUnliftIO m => m a -> (Async a -> m b) -> m b
-withAsyncBound a b = withUnliftIO $ \u -> A.withAsyncBound (unliftIO u a) (unliftIO u . b)
+withAsyncBound a b = withRunInIO $ \run -> A.withAsyncBound (run a) (run . b)
 
 -- | Unlifted 'A.withAsyncOn'.
 --
 -- @since 0.1.0.0
 withAsyncOn :: MonadUnliftIO m => Int -> m a -> (Async a -> m b) -> m b
-withAsyncOn i a b = withUnliftIO $ \u -> A.withAsyncOn i (unliftIO u a) (unliftIO u . b)
+withAsyncOn i a b = withRunInIO $ \run -> A.withAsyncOn i (run a) (run . b)
 
 -- | Unlifted 'A.withAsyncWithUnmask'.
 --
@@ -121,9 +121,9 @@ withAsyncWithUnmask
   -> (Async a -> m b)
   -> m b
 withAsyncWithUnmask a b =
-  withUnliftIO $ \u -> A.withAsyncWithUnmask
-    (\unmask -> unliftIO u $ a $ liftIO . unmask . unliftIO u)
-    (unliftIO u . b)
+  withRunInIO $ \run -> A.withAsyncWithUnmask
+    (\unmask -> run $ a $ liftIO . unmask . run)
+    (run . b)
 
 -- | Unlifted 'A.withAsyncOnWithMask'.
 --
@@ -135,9 +135,9 @@ withAsyncOnWithUnmask
   -> (Async a -> m b)
   -> m b
 withAsyncOnWithUnmask i a b =
-  withUnliftIO $ \u -> A.withAsyncOnWithUnmask i
-    (\unmask -> unliftIO u $ a $ liftIO . unmask . unliftIO u)
-    (unliftIO u . b)
+  withRunInIO $ \run -> A.withAsyncOnWithUnmask i
+    (\unmask -> run $ a $ liftIO . unmask . run)
+    (run . b)
 
 -- | Lifted 'A.wait'.
 --
@@ -252,25 +252,25 @@ link2 a b = liftIO (A.link2 a b)
 --
 -- @since 0.1.0.0
 race :: MonadUnliftIO m => m a -> m b -> m (Either a b)
-race a b = withUnliftIO $ \u -> A.race (unliftIO u a) (unliftIO u b)
+race a b = withRunInIO $ \run -> A.race (run a) (run b)
 
 -- | Unlifted 'A.race_'.
 --
 -- @since 0.1.0.0
 race_ :: MonadUnliftIO m => m a -> m b -> m ()
-race_ a b = withUnliftIO $ \u -> A.race_ (unliftIO u a) (unliftIO u b)
+race_ a b = withRunInIO $ \run -> A.race_ (run a) (run b)
 
 -- | Unlifted 'A.concurrently'.
 --
 -- @since 0.1.0.0
 concurrently :: MonadUnliftIO m => m a -> m b -> m (a, b)
-concurrently a b = withUnliftIO $ \u -> A.concurrently (unliftIO u a) (unliftIO u b)
+concurrently a b = withRunInIO $ \run -> A.concurrently (run a) (run b)
 
 -- | Unlifted 'A.concurrently_'.
 --
 -- @since 0.1.0.0
 concurrently_ :: MonadUnliftIO m => m a -> m b -> m ()
-concurrently_ a b = withUnliftIO $ \u -> A.concurrently_ (unliftIO u a) (unliftIO u b)
+concurrently_ a b = withRunInIO $ \run -> A.concurrently_ (run a) (run b)
 
 -- | Unlifted 'A.mapConcurrently'.
 --

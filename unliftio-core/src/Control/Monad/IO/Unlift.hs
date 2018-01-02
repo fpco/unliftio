@@ -86,20 +86,21 @@ askRunInIO :: MonadUnliftIO m => m (m a -> IO a)
 askRunInIO = liftM unliftIO askUnliftIO
 
 -- | Convenience function for capturing the monadic context and running
--- an 'IO' action.
+-- an 'IO' action. The 'UnliftIO' newtype wrapper is rarely needed, so
+-- prefer 'withRunInIO' to this function.
 --
 -- @since 0.1.0.0
 {-# INLINE withUnliftIO #-}
 withUnliftIO :: MonadUnliftIO m => (UnliftIO m -> IO a) -> m a
 withUnliftIO inner = askUnliftIO >>= liftIO . inner
 
--- | Same as 'withUnliftIO', but uses a monomorphic function like
--- 'askRunInIO'.
+-- | Same as 'withUnliftIO', but uses a polymorphic function
+-- without the newtype wrapper.
 --
 -- @since 0.1.0.0
 {-# INLINE withRunInIO #-}
-withRunInIO :: MonadUnliftIO m => ((m a -> IO a) -> IO b) -> m b
-withRunInIO inner = askRunInIO >>= liftIO . inner
+withRunInIO :: MonadUnliftIO m => ((forall a. m a -> IO a) -> IO b) -> m b
+withRunInIO inner = withUnliftIO $ \u -> inner (unliftIO u)
 
 -- | Convert an action in @m@ to an action in @IO@.
 --
