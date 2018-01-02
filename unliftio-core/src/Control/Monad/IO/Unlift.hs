@@ -94,8 +94,9 @@ askRunInIO = liftM unliftIO askUnliftIO
 withUnliftIO :: MonadUnliftIO m => (UnliftIO m -> IO a) -> m a
 withUnliftIO inner = askUnliftIO >>= liftIO . inner
 
--- | Same as 'withUnliftIO', but uses a polymorphic function
--- without the newtype wrapper.
+-- | Convenience function for capturing the monadic context and running an 'IO'
+-- action with a runner function. The runner function is used to run a monadic
+-- action @m@ in @IO@.
 --
 -- @since 0.1.0.0
 {-# INLINE withRunInIO #-}
