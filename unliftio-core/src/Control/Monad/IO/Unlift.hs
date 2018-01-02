@@ -6,7 +6,6 @@ module Control.Monad.IO.Unlift
   , UnliftIO (..)
   , askRunInIO
   , withUnliftIO
-  , withRunInIO
   , toIO
   , MonadIO (..)
   ) where
@@ -52,6 +51,7 @@ newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
 --
 -- @since 0.1.0.0
 class MonadIO m => MonadUnliftIO m where
+  {-# MINIMAL askUnliftIO | withRunInIO #-}
   -- | Capture the current monadic context, providing the ability to
   -- run monadic actions in 'IO'.
   --
@@ -59,21 +59,45 @@ class MonadIO m => MonadUnliftIO m where
   -- datatype here.
   -- @since 0.1.0.0
   askUnliftIO :: m (UnliftIO m)
+  askUnliftIO = withRunInIO (\run -> return (UnliftIO run))
+  {-# INLINE askUnliftIO #-}
   -- Would be better, but GHC hates us
   -- askUnliftIO :: m (forall a. m a -> IO a)
+
+  -- | Convenience function for capturing the monadic context and running an 'IO'
+  -- action with a runner function. The runner function is used to run a monadic
+  -- action @m@ in @IO@.
+  --
+  -- @since 0.1.0.0
+  {-# INLINE withRunInIO #-}
+  withRunInIO :: ((forall a. m a -> IO a) -> IO b) -> m b
+  withRunInIO inner = askUnliftIO >>= \u -> liftIO (inner (unliftIO u))
 instance MonadUnliftIO IO where
   {-# INLINE askUnliftIO #-}
   askUnliftIO = return (UnliftIO id)
+  {-# INLINE withRunInIO #-}
+  withRunInIO inner = inner id
 instance MonadUnliftIO m => MonadUnliftIO (ReaderT r m) where
   {-# INLINE askUnliftIO #-}
   askUnliftIO = ReaderT $ \r ->
                 withUnliftIO $ \u ->
                 return (UnliftIO (unliftIO u . flip runReaderT r))
+  {-# INLINE withRunInIO #-}
+  withRunInIO inner =
+    ReaderT $ \r ->
+    withRunInIO $ \run ->
+    inner (run . flip runReaderT r)
+
 instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
   {-# INLINE askUnliftIO #-}
   askUnliftIO = IdentityT $
                 withUnliftIO $ \u ->
                 return (UnliftIO (unliftIO u . runIdentityT))
+  {-# INLINE withRunInIO #-}
+  withRunInIO inner =
+    IdentityT $
+    withRunInIO $ \run ->
+    inner (run . runIdentityT)
 
 -- | Same ask 'askUnliftIO', but returns a monomorphic function
 -- instead of a polymorphic newtype wrapper. If you only need to apply
@@ -83,7 +107,7 @@ instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
 -- @since 0.1.0.0
 {-# INLINE askRunInIO #-}
 askRunInIO :: MonadUnliftIO m => m (m a -> IO a)
-askRunInIO = liftM unliftIO askUnliftIO
+askRunInIO = withRunInIO return
 
 -- | Convenience function for capturing the monadic context and running
 -- an 'IO' action. The 'UnliftIO' newtype wrapper is rarely needed, so
@@ -93,15 +117,6 @@ askRunInIO = liftM unliftIO askUnliftIO
 {-# INLINE withUnliftIO #-}
 withUnliftIO :: MonadUnliftIO m => (UnliftIO m -> IO a) -> m a
 withUnliftIO inner = askUnliftIO >>= liftIO . inner
-
--- | Convenience function for capturing the monadic context and running an 'IO'
--- action with a runner function. The runner function is used to run a monadic
--- action @m@ in @IO@.
---
--- @since 0.1.0.0
-{-# INLINE withRunInIO #-}
-withRunInIO :: MonadUnliftIO m => ((forall a. m a -> IO a) -> IO b) -> m b
-withRunInIO inner = withUnliftIO $ \u -> inner (unliftIO u)
 
 -- | Convert an action in @m@ to an action in @IO@.
 --
