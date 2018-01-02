@@ -1,6 +1,6 @@
 {-# LANGUAGE RankNTypes #-}
 -- | Please see the README.md file for information on using this
--- package.
+-- package at <https://www.stackage.org/package/unliftio-core>.
 module Control.Monad.IO.Unlift
   ( MonadUnliftIO (..)
   , UnliftIO (..)

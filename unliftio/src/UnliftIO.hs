@@ -1,3 +1,5 @@
+-- | Please see the README.md file for information on using this
+-- package at <https://www.stackage.org/package/unliftio>.
 module UnliftIO
   ( module Control.Monad.IO.Unlift
   , module UnliftIO.Async
