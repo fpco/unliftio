@@ -107,7 +107,8 @@ instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
 -- @since 0.1.0.0
 {-# INLINE askRunInIO #-}
 askRunInIO :: MonadUnliftIO m => m (m a -> IO a)
-askRunInIO = withRunInIO return
+-- withRunInIO return would be nice, but GHC 7.8.4 doesn't like it
+askRunInIO = withRunInIO (\run -> (return (\ma -> run ma)))
 
 -- | Convenience function for capturing the monadic context and running
 -- an 'IO' action. The 'UnliftIO' newtype wrapper is rarely needed, so
