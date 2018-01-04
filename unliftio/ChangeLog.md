@@ -1,3 +1,7 @@
+## 0.2.3.0
+
+* Use more generalized `withRunInIO` in `unliftio-core-0.1.1.0`
+
 ## 0.2.2.0
 
 * Add `pureTry` and `pureTryDeep`
