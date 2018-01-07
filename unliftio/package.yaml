@@ -1,5 +1,5 @@
 name:                unliftio
-version:             0.2.4.0
+version:             0.2.3.0
 synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO (batteries included)
 description:         Please see the documentation and README at <https://www.stackage.org/package/unliftio>
 homepage:            https://github.com/fpco/unliftio/tree/master/unliftio#readme

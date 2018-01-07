@@ -1,3 +1,5 @@
+/* From https://github.com/bos/criterion */
+
 #include <time.h>
 
 void unliftio_inittime(void)

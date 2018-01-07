@@ -168,7 +168,7 @@ hReady = liftIO . IO.hReady
 -- | Get the number of seconds which have passed since an arbitrary starting
 -- time, useful for calculating runtime in a program.
 --
--- @since 0.2.4.0
+-- @since 0.2.3.0
 getMonotonicTime :: MonadIO m => m Double
 getMonotonicTime = liftIO $ initted `seq` getMonotonicTime'
 

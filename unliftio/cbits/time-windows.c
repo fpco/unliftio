@@ -1,3 +1,5 @@
+/* From https://github.com/bos/criterion */
+
 /*
  * Windows has the most amazingly cretinous time measurement APIs you
  * can possibly imagine.

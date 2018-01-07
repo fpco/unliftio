@@ -1,10 +1,7 @@
-## 0.2.4.0
-
-* Add `getMonotonicTime` function
-
 ## 0.2.3.0
 
 * Use more generalized `withRunInIO` in `unliftio-core-0.1.1.0`
+* Add `getMonotonicTime` function
 
 ## 0.2.2.0
 
