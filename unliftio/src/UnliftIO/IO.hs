@@ -30,11 +30,14 @@ module UnliftIO.IO
   , hGetEcho
   , hWaitForInput
   , hReady
+  , getMonotonicTime
   ) where
 
 import qualified System.IO as IO
 import System.IO (Handle, IOMode (..))
 import Control.Monad.IO.Unlift
+
+import System.IO.Unsafe (unsafePerformIO)
 
 -- | Unlifted version of 'IO.withFile'.
 --
@@ -161,3 +164,19 @@ hWaitForInput h = liftIO . IO.hWaitForInput h
 -- @since 0.2.1.0
 hReady :: MonadIO m => Handle -> m Bool
 hReady = liftIO . IO.hReady
+
+-- | Get the number of seconds which have passed since an arbitrary starting
+-- time, useful for calculating runtime in a program.
+--
+-- @since 0.2.4.0
+getMonotonicTime :: MonadIO m => m Double
+getMonotonicTime = liftIO $ initted `seq` getMonotonicTime'
+
+-- | Set up time measurement.
+foreign import ccall unsafe "unliftio_inittime" initializeTime :: IO ()
+
+initted :: ()
+initted = unsafePerformIO initializeTime
+{-# NOINLINE initted #-}
+
+foreign import ccall unsafe "unliftio_gettime" getMonotonicTime' :: IO Double
