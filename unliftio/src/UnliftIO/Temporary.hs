@@ -70,7 +70,7 @@ withTempFile :: MonadUnliftIO m =>
 withTempFile tmpDir template action =
   bracket
     (liftIO (openTempFile tmpDir template))
-    (\(name, handle) -> liftIO (hClose handle >> ignoringIOErrors (removeFile name)))
+    (\(name, handle') -> liftIO (hClose handle' >> ignoringIOErrors (removeFile name)))
     (uncurry action)
 
 -- | Create and use a temporary directory.
