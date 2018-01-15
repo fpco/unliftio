@@ -10,7 +10,6 @@ module Control.Monad.IO.Unlift
   , MonadIO (..)
   ) where
 
-import Control.Monad (liftM)
 import Control.Monad.IO.Class
 import Control.Monad.Trans.Reader (ReaderT (..))
 import Control.Monad.Trans.Identity (IdentityT (..))
