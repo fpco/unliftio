@@ -56,6 +56,7 @@ class MonadIO m => MonadUnliftIO m where
   --
   -- See 'UnliftIO' for an explanation of why we need a helper
   -- datatype here.
+  --
   -- @since 0.1.0.0
   askUnliftIO :: m (UnliftIO m)
   askUnliftIO = withRunInIO (\run -> return (UnliftIO run))
