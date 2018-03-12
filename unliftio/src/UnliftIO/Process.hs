@@ -1,13 +1,36 @@
+{-# LANGUAGE CPP #-}
 -- | Unlifted "System.Process".
 --
 -- @since 0.2.4.0
 
 module UnliftIO.Process (
   -- * Running sub-processes
-  CreateProcess(..), CmdSpec(..), StdStream(..), ProcessHandle, createProcess, createProcess_, P.shell, P.proc
+  CreateProcess(..), CmdSpec(..), StdStream(..), ProcessHandle, createProcess
+
+#if MIN_VERSION_process(1,2,1)
+  , createProcess_
+#endif
+
+  , P.shell, P.proc
 
   -- ** Simpler functions for common tasks
-  , callProcess, callCommand, spawnProcess, spawnCommand, readCreateProcess, readProcess, readCreateProcessWithExitCode, readProcessWithExitCode, withCreateProcess
+  , callProcess, callCommand, spawnProcess, spawnCommand
+
+#if MIN_VERSION_process(1,2,3)
+  , readCreateProcess
+#endif
+
+  , readProcess
+
+#if MIN_VERSION_process(1,2,3)
+  , readCreateProcessWithExitCode
+#endif
+
+  , readProcessWithExitCode
+
+#if MIN_VERSION_process(1,4,3)
+  , withCreateProcess
+#endif
 
   -- ** Related utilities
   , P.showCommandForUser
@@ -15,8 +38,14 @@ module UnliftIO.Process (
   -- * Process completion
   , waitForProcess, getProcessExitCode, terminateProcess, interruptProcessGroupOf
 
+#if MIN_VERSION_process(1,2,1)
   -- * Interprocess communication
-  , createPipe, createPipeFd
+  , createPipe
+#endif
+
+#if MIN_VERSION_process(1,4,2)
+  , createPipeFd
+#endif
   ) where
 
 import Control.Monad.IO.Unlift
@@ -41,6 +70,7 @@ createProcess ::
   -> m (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
 createProcess = liftIO . P.createProcess
 
+#if MIN_VERSION_process(1,2,1)
 -- | Lifted 'P.createProcess_'.
 --
 -- @since 0.2.4.0
@@ -51,6 +81,7 @@ createProcess_ ::
   -> CreateProcess
   -> m (Maybe Handle, Maybe Handle, Maybe Handle, ProcessHandle)
 createProcess_ msg proc_ = liftIO (P.createProcess_ msg proc_)
+#endif
 
 -- | Lifted 'P.callProcess'.
 --
@@ -80,12 +111,14 @@ spawnProcess cmd args = liftIO (P.spawnProcess cmd args)
 spawnCommand :: MonadIO m => String -> m ProcessHandle
 spawnCommand = liftIO . P.spawnCommand
 
+#if MIN_VERSION_process(1,2,3)
 -- | Lifted 'P.readCreateProcess'.
 --
 -- @since 0.2.4.0
 {-# INLINE readCreateProcess #-}
 readCreateProcess :: MonadIO m => CreateProcess -> String -> m String
 readCreateProcess cp input = liftIO (P.readCreateProcess cp input)
+#endif
 
 -- | Lifted 'P.readProcess'.
 --
@@ -94,6 +127,7 @@ readCreateProcess cp input = liftIO (P.readCreateProcess cp input)
 readProcess :: MonadIO m => FilePath -> [String] -> String -> m String
 readProcess cmd args input = liftIO (P.readProcess cmd args input)
 
+#if MIN_VERSION_process(1,2,3)
 -- | Lifted 'P.readCreateProcessWithExitCode'.
 --
 -- @since 0.2.4.0
@@ -102,6 +136,7 @@ readCreateProcessWithExitCode ::
      MonadIO m => CreateProcess -> String -> m (ExitCode, String, String)
 readCreateProcessWithExitCode cp input =
   liftIO (P.readCreateProcessWithExitCode cp input)
+#endif
 
 -- | Lifted 'P.readProcessWithExitCode'.
 --
@@ -112,6 +147,7 @@ readProcessWithExitCode ::
 readProcessWithExitCode cmd args input =
   liftIO (P.readProcessWithExitCode cmd args input)
 
+#if MIN_VERSION_process(1,4,3)
 -- | Unlifted 'P.withCreateProcess'.
 --
 -- @since 0.2.4.0
@@ -128,6 +164,7 @@ withCreateProcess c action =
          c
          (\stdin_h stdout_h stderr_h proc_h ->
             u (action stdin_h stdout_h stderr_h proc_h)))
+#endif
 
 -- | Lifted 'P.waitForProcess'.
 --
@@ -157,16 +194,20 @@ terminateProcess = liftIO . P.terminateProcess
 interruptProcessGroupOf :: MonadIO m => ProcessHandle -> m ()
 interruptProcessGroupOf = liftIO . interruptProcessGroupOf
 
+#if MIN_VERSION_process(1,2,1)
 -- | Lifted 'P.createPipe'.
 --
 -- @since 0.2.4.0
 {-# INLINE createPipe #-}
 createPipe :: MonadIO m => m (Handle, Handle)
 createPipe = liftIO P.createPipe
+#endif
 
+#if MIN_VERSION_process(1,4,2)
 -- | Lifted 'P.createPipeFd'.
 --
 -- @since 0.2.4.0
 {-# INLINE createPipeFd #-}
 createPipeFd :: MonadIO m => m (FD, FD)
 createPipeFd = liftIO P.createPipeFd
+#endif
