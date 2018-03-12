@@ -8,6 +8,7 @@ module UnliftIO
   , module UnliftIO.IO
   , module UnliftIO.IORef
   , module UnliftIO.MVar
+  , module UnliftIO.Process
   , module UnliftIO.STM
   , module UnliftIO.Temporary
   , module UnliftIO.Timeout
@@ -20,6 +21,7 @@ import UnliftIO.Exception
 import UnliftIO.IO
 import UnliftIO.IORef
 import UnliftIO.MVar
+import UnliftIO.Process
 import UnliftIO.STM
 import UnliftIO.Temporary
 import UnliftIO.Timeout
