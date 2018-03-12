@@ -1,5 +1,6 @@
 ## 0.2.4.0
 
+* Add `UnliftIO.Environment`
 * Add `UnliftIO.Process`
 
 ## 0.2.3.0

@@ -4,6 +4,7 @@ module UnliftIO
   ( module Control.Monad.IO.Unlift
   , module UnliftIO.Async
   , module UnliftIO.Chan
+  , module UnliftIO.Environment
   , module UnliftIO.Exception
   , module UnliftIO.IO
   , module UnliftIO.IORef
@@ -17,6 +18,7 @@ module UnliftIO
 import Control.Monad.IO.Unlift
 import UnliftIO.Async
 import UnliftIO.Chan
+import UnliftIO.Environment
 import UnliftIO.Exception
 import UnliftIO.IO
 import UnliftIO.IORef
