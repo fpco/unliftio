@@ -192,7 +192,7 @@ terminateProcess = liftIO . P.terminateProcess
 -- @since 0.2.4.0
 {-# INLINE interruptProcessGroupOf #-}
 interruptProcessGroupOf :: MonadIO m => ProcessHandle -> m ()
-interruptProcessGroupOf = liftIO . interruptProcessGroupOf
+interruptProcessGroupOf = liftIO . P.interruptProcessGroupOf
 
 #if MIN_VERSION_process(1,2,1)
 -- | Lifted 'P.createPipe'.
