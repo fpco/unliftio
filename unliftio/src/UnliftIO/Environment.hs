@@ -66,14 +66,14 @@ setEnv key_ value_ = liftIO (E.setEnv key_ value_)
 unsetEnv :: MonadIO m => String -> m ()
 unsetEnv = liftIO . E.unsetEnv
 
--- | Lifted 'E.withArgs'.
+-- | Unlifted 'E.withArgs'.
 --
 -- @since 0.2.4.0
 {-# INLINE withArgs #-}
 withArgs :: MonadUnliftIO m => [String] -> m a -> m a
 withArgs xs act = withRunInIO (\u -> E.withArgs xs (u act))
 
--- | Lifted 'E.withProgName'.
+-- | Unlifted 'E.withProgName'.
 --
 -- @since 0.2.4.0
 {-# INLINE withProgName #-}
