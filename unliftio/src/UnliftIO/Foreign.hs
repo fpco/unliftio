@@ -231,8 +231,10 @@ module UnliftIO.Foreign (
   , allocaBytesAligned
   , malloc
   , mallocBytes
+#if MIN_VERSION_base(4,8,0)
   , calloc
   , callocBytes
+#endif
   , realloc
   , reallocBytes
   , free
@@ -245,8 +247,10 @@ module UnliftIO.Foreign (
   , allocaArray0
   , reallocArray
   , reallocArray0
+#if MIN_VERSION_base(4,8,0)
   , callocArray
   , callocArray0
+#endif
   , peekArray
   , peekArray0
   , pokeArray
@@ -297,7 +301,9 @@ module UnliftIO.Foreign (
   , withMany
   , copyBytes
   , moveBytes
+#if MIN_VERSION_base(4,8,0)
   , fillBytes
+#endif
   ) where
 
 import Control.Monad.IO.Unlift
@@ -331,7 +337,9 @@ import Foreign
   , minusPtr
   , nullFunPtr
   , nullPtr
+#if MIN_VERSION_base(4,10,0)
   , plusForeignPtr
+#endif
   , plusPtr
   , ptrToIntPtr
   , ptrToWordPtr
@@ -950,6 +958,7 @@ malloc = liftIO F.malloc
 mallocBytes :: MonadIO m => Int -> m (Ptr a)
 mallocBytes = liftIO . F.mallocBytes
 
+#if MIN_VERSION_base(4,8,0)
 -- | Lifted 'F.calloc'.
 --
 -- @since 0.2.4.0
@@ -963,6 +972,7 @@ calloc = liftIO F.calloc
 {-# INLINE callocBytes #-}
 callocBytes :: MonadIO m => Int -> m (Ptr a)
 callocBytes = liftIO . F.callocBytes
+#endif
 
 -- | Lifted 'F.realloc'.
 --
@@ -1027,6 +1037,7 @@ reallocArray ptr size = liftIO (F.reallocArray ptr size)
 reallocArray0 :: (MonadIO m, Storable a) => Ptr a -> Int -> m (Ptr a)
 reallocArray0 ptr size = liftIO (F.reallocArray0 ptr size)
 
+#if MIN_VERSION_base(4,8,0)
 -- | Lifted 'F.callocArray'.
 --
 -- @since 0.2.4.0
@@ -1040,6 +1051,7 @@ callocArray = liftIO . F.callocArray
 {-# INLINE callocArray0 #-}
 callocArray0 :: (MonadIO m, Storable a) => Int -> m (Ptr a)
 callocArray0 = liftIO . F.callocArray0
+#endif
 
 -- | Lifted 'F.peekArray'.
 --
@@ -1291,7 +1303,7 @@ new = liftIO . F.new
 -- @since 0.2.4.0
 {-# INLINE maybeNew #-}
 maybeNew :: MonadIO m => (a -> m (Ptr b)) -> Maybe a -> m (Ptr b)
-maybeNew = maybe (pure nullPtr)
+maybeNew = maybe (return nullPtr)
 
 -- | Lifted 'F.maybeWith'.
 --
@@ -1326,9 +1338,11 @@ copyBytes dest src size = liftIO (F.copyBytes dest src size)
 moveBytes :: MonadIO m => Ptr a -> Ptr a -> Int -> m ()
 moveBytes dest src size = liftIO (F.moveBytes dest src size)
 
+#if MIN_VERSION_base(4,8,0)
 -- | Lifted 'F.fillBytes'.
 --
 -- @since 0.2.4.0
 {-# INLINE fillBytes #-}
 fillBytes :: MonadIO m => Ptr a -> Word8 -> Int -> m ()
 fillBytes dest char size = liftIO (F.fillBytes dest char size)
+#endif
