@@ -531,7 +531,7 @@ peekCAStringLen = liftIO . F.peekCAStringLen
 -- @since 0.2.4.0
 {-# INLINE newCAString #-}
 newCAString :: MonadIO m => String -> m CString
-newCAString = liftIO . newCAString
+newCAString = liftIO . F.newCAString
 
 -- | Lifted 'F.newCAStringLen'.
 --
