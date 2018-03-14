@@ -1,3 +1,7 @@
+## 0.2.6.0
+
+* Add `UnliftIO.Directory`
+
 ## 0.2.5.0
 
 * Add `UnliftIO.Environment`/`UnliftIO.Foreign`/`UnliftIO.Process`
