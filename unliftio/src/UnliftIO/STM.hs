@@ -33,6 +33,7 @@ module UnliftIO.STM
   , STM.tryReadTMVar
   , STM.swapTMVar
   , STM.tryTakeTMVar
+  , STM.tryPutTMVar
   , STM.isEmptyTMVar
   , mkWeakTMVar
 
