@@ -1,3 +1,7 @@
+## Unreleased
+
+* Re-export `tryPutTMVar` from `UnliftIO.STM`
+
 ## 0.2.6.0
 
 * Add `UnliftIO.Directory`
