@@ -14,11 +14,13 @@ over time. It's also very lightly tested. That said: the core concept of
 the code here is lightly tested, the vast majority of it is simply apply
 `withUnliftIO` to existing functionality. Caveat emptor and all that.
 
+__WARNING__ The `UnliftIO.Exception` module in this library changes the semantics of asynchronous exceptions to be in the style of the `safe-exceptions` package, which is orthogonal to the "unlifting" concept. While this change is an improvment in most cases, it means that `UnliftIO.Exception` is not always a drop-in replacement for `Control.Exception` in advanced exception handling code. See [Async exception safety](#async-exception-safety) for details.
+
 ## Quickstart
 
 * Replace imports like `Control.Exception` with
   `UnliftIO.Exception`. Yay, your `catch` and `finally` are more
-  powerful and safer!
+  powerful and safer (see [Async exception safety](#async-exception-safety))!
 * Similar with `Control.Concurrent.Async` with `UnliftIO.Async`
 * Or go all in and import `UnliftIO`
 * Naming conflicts: let `unliftio` win
@@ -357,7 +359,8 @@ monads we can be working with.
 
 ## Async exception safety
 
-The `safe-exceptions` package builds on top of the `exceptions`
+The [`safe-exceptions`](https://hackage.haskell.org/package/safe-exceptions)
+package builds on top of the `exceptions`
 package and provides intelligent behavior for dealing with
 asynchronous exceptions, a common pitfall. This library provides a set
 of exception handling functions with the same async exception behavior
