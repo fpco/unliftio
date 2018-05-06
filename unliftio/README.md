@@ -14,7 +14,7 @@ over time. It's also very lightly tested. That said: the core concept of
 the code here is lightly tested, the vast majority of it is simply apply
 `withUnliftIO` to existing functionality. Caveat emptor and all that.
 
-__WARNING__ The `UnliftIO.Exception` module in this library changes the semantics of asynchronous exceptions to be in the style of the `safe-exceptions` package, which is orthogonal to the "unlifting" concept. While this change is an improvment in most cases, it means that `UnliftIO.Exception` is not always a drop-in replacement for `Control.Exception` in advanced exception handling code. See [Async exception safety](#async-exception-safety) for details.
+__NOTE__ The `UnliftIO.Exception` module in this library changes the semantics of asynchronous exceptions to be in the style of the `safe-exceptions` package, which is orthogonal to the "unlifting" concept. While this change is an improvment in most cases, it means that `UnliftIO.Exception` is not always a drop-in replacement for `Control.Exception` in advanced exception handling code. See [Async exception safety](#async-exception-safety) for details.
 
 ## Quickstart
 
