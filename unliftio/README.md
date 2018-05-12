@@ -178,7 +178,7 @@ timeout x y = do
   System.Timeout.timeout x $ unliftIO u y
 ```
 
-or more concisely using `withRunIO`:
+or more concisely using `withRunInIO`:
 
 ```haskell
 timeout :: MonadUnliftIO m => Int -> m a -> m (Maybe a)
@@ -187,7 +187,7 @@ timeout x y = withRunInIO $ \run -> System.Timeout.timeout x $ run y
 
 This is a common pattern: use `withRunInIO` to capture a run function,
 and then call the original function with the user-supplied arguments,
-applying `run` as necessary. `withRunIO` takes care of invoking
+applying `run` as necessary. `withRunInIO` takes care of invoking
 `unliftIO` for us.
 
 We can also use the run function with different types due to
