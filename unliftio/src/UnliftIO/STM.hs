@@ -7,6 +7,7 @@ module UnliftIO.STM
   , atomically
   , retrySTM
   , checkSTM
+  , STM.orElse
 
     -- * TVar
   , STM.TVar
