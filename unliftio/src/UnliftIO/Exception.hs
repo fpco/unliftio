@@ -334,7 +334,7 @@ finally thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \resto
       _ <- run after
       return x
 
--- | Like 'onException', but provides the handler the thrown
+-- | Like 'onException', but takes an handler for the thrown
 -- exception.
 --
 -- @since 0.1.0.0
