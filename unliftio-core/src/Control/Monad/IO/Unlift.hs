@@ -99,7 +99,7 @@ instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
     withRunInIO $ \run ->
     inner (run . runIdentityT)
 
--- | Same ask 'askUnliftIO', but returns a monomorphic function
+-- | Same as 'askUnliftIO', but returns a monomorphic function
 -- instead of a polymorphic newtype wrapper. If you only need to apply
 -- the transformation on one concrete type, this function can be more
 -- convenient.
