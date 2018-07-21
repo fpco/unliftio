@@ -175,7 +175,7 @@ We can use `askUnliftIO` to unlift a function:
 timeout :: MonadUnliftIO m => Int -> m a -> m (Maybe a)
 timeout x y = do
   u <- askUnliftIO
-  System.Timeout.timeout x $ unliftIO u y
+  liftIO $ System.Timeout.timeout x $ unliftIO u y
 ```
 
 or more concisely using `withRunInIO`:
