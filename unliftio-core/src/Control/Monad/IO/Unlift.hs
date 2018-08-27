@@ -7,6 +7,7 @@ module Control.Monad.IO.Unlift
   , askRunInIO
   , withUnliftIO
   , toIO
+  , wrappedWithRunInIO
   , MonadIO (..)
   ) where
 
@@ -125,3 +126,29 @@ withUnliftIO inner = askUnliftIO >>= liftIO . inner
 {-# INLINE toIO #-}
 toIO :: MonadUnliftIO m => m a -> m (IO a)
 toIO m = withRunInIO $ \run -> return $ run m
+
+{- | A helper function for implementing @MonadUnliftIO@ instances.
+Useful for the common case where you want to simply delegate to the
+underlying transformer.
+
+@since 0.1.2.0
+==== __Example__
+
+> newtype AppT m a = AppT { unAppT :: ReaderT Int (ResourceT m) a }
+>   deriving (Functor, Applicative, Monad, MonadIO)
+>   -- Unfortunately, deriving MonadUnliftIO does not work.
+>
+> instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
+>   withRunInIO = wrappedWithRunInIO AppT unAppT
+-}
+{-# INLINE wrappedWithRunInIO #-}
+wrappedWithRunInIO :: MonadUnliftIO n
+                   => (n b -> m b)
+                   -- ^ The wrapper, for instance @IdentityT@.
+                   -> (forall a. m a -> n a)
+                   -- ^ The inverse, for instance @runIdentityT@.
+                   -> ((forall a. m a -> IO a) -> IO b)
+                   -- ^ The actual function to invoke 'withRunInIO' with.
+                   -> m b
+wrappedWithRunInIO wrap unwrap inner = wrap $ withRunInIO $ \run ->
+  inner $ run . unwrap
