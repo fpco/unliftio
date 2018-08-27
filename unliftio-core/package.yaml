@@ -1,5 +1,5 @@
 name:                unliftio-core
-version:             0.1.1.0
+version:             0.1.2.0
 synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO
 description:         Please see the documentation and README at <https://www.stackage.org/package/unliftio-core>
 homepage:            https://github.com/fpco/unliftio/tree/master/unliftio-core#readme
