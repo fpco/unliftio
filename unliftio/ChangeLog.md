@@ -1,3 +1,9 @@
+# Changelog for unliftio
+
+## 0.2.7.1
+
+* Minor doc improvements
+
 ## 0.2.7.0
 
 * Re-export `tryPutTMVar` from `UnliftIO.STM`
