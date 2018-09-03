@@ -1,6 +1,1 @@
-resolver: lts-8.21
-packages:
-- unliftio
-- unliftio-core
-extra-deps: # for Travis builds
-- async-2.1.1.1
+stack-lts-12.yaml
