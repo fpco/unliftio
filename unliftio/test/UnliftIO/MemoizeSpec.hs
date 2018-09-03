@@ -17,20 +17,20 @@ spec = do
   let basics maker = do
         prop "sanity" $ \i -> do
           x <- maker $ return (i :: Int)
-          getMemoized x `shouldReturn` i
+          runMemoized x `shouldReturn` i
         prop "runs once" $ \i -> do
           count <- newIORef (0 :: Int)
           x <- maker $ do
             modifyIORef' count (+ 1)
             return (i :: Int)
-          replicateM_ 10 $ getMemoized x `shouldReturn` i
+          replicateM_ 10 $ runMemoized x `shouldReturn` i
           readIORef count `shouldReturn` 1
         it "runs once with exception" $ do
           count <- newIORef (0 :: Int)
           x <- maker $ do
             modifyIORef' count (+ 1)
             throwIO Dummy
-          replicateM_ 10 $ getMemoized x `shouldThrow` (\Dummy -> True)
+          replicateM_ 10 $ runMemoized x `shouldThrow` (\Dummy -> True)
           readIORef count `shouldReturn` 1
   describe "memoizeRef" $ basics memoizeRef
   describe "memoizeMVar" $ do
@@ -41,5 +41,5 @@ spec = do
         threadDelay 10000
         atomicModifyIORef' count $ \cnt -> (cnt + 1, ())
         return (i :: Int)
-      replicateConcurrently_ 10 $ getMemoized x `shouldReturn` i
+      replicateConcurrently_ 10 $ runMemoized x `shouldReturn` i
       readIORef count `shouldReturn` 1

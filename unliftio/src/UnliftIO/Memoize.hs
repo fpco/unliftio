@@ -4,12 +4,12 @@
 --
 -- Exceptions semantics: if a synchronous exception is thrown while performing
 -- the computation, that result will be saved and rethrown each time
--- 'getMemoized' is called subsequently.'
+-- 'runMemoized' is called subsequently.'
 --
 -- @since 0.2.8.0
 module UnliftIO.Memoize
   ( Memoized
-  , getMemoized
+  , runMemoized
   , memoizeRef
   , memoizeMVar
   ) where
@@ -22,7 +22,7 @@ import UnliftIO.IORef
 import UnliftIO.MVar
 
 -- | A \"run once\" value, with results saved. Extract the value with
--- 'getMemoized'. For single-threaded usage, you can use 'memoizeRef' to
+-- 'runMemoized'. For single-threaded usage, you can use 'memoizeRef' to
 -- create a value. If you need guarantees that only one thread will run the
 -- action at a time, use 'memoizeMVar'.
 --
@@ -39,9 +39,9 @@ instance Show (Memoized a) where
 -- available.
 --
 -- @since 0.2.8.0
-getMemoized :: MonadIO m => Memoized a -> m a
-getMemoized (Memoized m) = liftIO m
-{-# INLINE getMemoized #-}
+runMemoized :: MonadIO m => Memoized a -> m a
+runMemoized (Memoized m) = liftIO m
+{-# INLINE runMemoized #-}
 
 -- | Create a new 'Memoized' value using an 'IORef' under the surface. Note that
 -- the action may be run in multiple threads simultaneously, so this may not be
