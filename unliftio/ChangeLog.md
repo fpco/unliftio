@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.8.0
+
+* Add 'UnliftIO.Memoize'
+
 ## 0.2.7.1
 
 * Minor doc improvements

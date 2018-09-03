@@ -7,6 +7,7 @@ module UnliftIO
   , module UnliftIO.Exception
   , module UnliftIO.IO
   , module UnliftIO.IORef
+  , module UnliftIO.Memoize
   , module UnliftIO.MVar
   , module UnliftIO.STM
   , module UnliftIO.Temporary
@@ -19,6 +20,7 @@ import UnliftIO.Chan
 import UnliftIO.Exception
 import UnliftIO.IO
 import UnliftIO.IORef
+import UnliftIO.Memoize
 import UnliftIO.MVar
 import UnliftIO.STM
 import UnliftIO.Temporary
