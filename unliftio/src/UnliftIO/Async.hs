@@ -1,5 +1,9 @@
 {-# LANGUAGE CPP #-}
+{-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE GADTs #-}
+{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE ScopedTypeVariables #-}
 -- | Unlifted "Control.Concurrent.Async".
 --
 -- @since 0.1.0.0
@@ -42,17 +46,23 @@ module UnliftIO.Async
     mapConcurrently, forConcurrently,
     mapConcurrently_, forConcurrently_,
     replicateConcurrently, replicateConcurrently_,
-    Concurrently(..),
+    Concurrently, mkConcurrently, runConcurrently
   ) where
 
 import Control.Applicative
+import qualified Control.Concurrent as C
+import qualified Control.Exception
 import Control.Concurrent.Async (Async)
 import Control.Exception (SomeException, Exception)
+import Data.IORef
+import Control.Concurrent.MVar
 import qualified UnliftIO.Exception as E
 import qualified Control.Concurrent.Async as A
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever, liftM)
+import Control.Monad (forever, liftM, (>=>), void)
 import Control.Monad.IO.Unlift
+import Data.Foldable (traverse_)
+import Data.Traversable (for)
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
@@ -276,60 +286,163 @@ concurrently_ a b = withRunInIO $ \run -> A.concurrently_ (run a) (run b)
 --
 -- @since 0.1.0.0
 mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
-mapConcurrently f t = withRunInIO $ \run -> A.mapConcurrently (run . f) t
+mapConcurrently f = runConcurrently . traverse (mkConcurrently . f)
 
 -- | Unlifted 'A.forConcurrently'.
 --
 -- @since 0.1.0.0
 forConcurrently :: MonadUnliftIO m => Traversable t => t a -> (a -> m b) -> m (t b)
-forConcurrently t f = withRunInIO $ \run -> A.forConcurrently t (run . f)
+forConcurrently = flip mapConcurrently
 
 -- | Unlifted 'A.mapConcurrently_'.
 --
 -- @since 0.1.0.0
 mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
-mapConcurrently_ f t = withRunInIO $ \run -> A.mapConcurrently_ (run . f) t
+mapConcurrently_ f = runConcurrently . traverse_ (mkConcurrently . f)
 
 -- | Unlifted 'A.forConcurrently_'.
 --
 -- @since 0.1.0.0
 forConcurrently_ :: MonadUnliftIO m => Foldable f => f a -> (a -> m b) -> m ()
-forConcurrently_ t f = withRunInIO $ \run -> A.forConcurrently_ t (run . f)
+forConcurrently_ = flip mapConcurrently_
 
 -- | Unlifted 'A.replicateConcurrently'.
 --
 -- @since 0.1.0.0
 replicateConcurrently :: MonadUnliftIO m => Int -> m a -> m [a]
-replicateConcurrently i m = withRunInIO $ \run -> A.replicateConcurrently i (run m)
+replicateConcurrently i = runConcurrently . replicateA i . mkConcurrently
+
+replicateA :: Applicative f => Int -> f a -> f [a]
+replicateA i0 f =
+  loop i0
+  where
+    loop i
+      | i <= 0 = pure []
+      | otherwise = liftA2 (:) f (loop $! i - 1)
 
 -- | Unlifted 'A.replicateConcurrently_'.
 --
 -- @since 0.1.0.0
 replicateConcurrently_ :: MonadUnliftIO m => Int -> m a -> m ()
-replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (run m)
+replicateConcurrently_ i = runConcurrently . replicateA_ i . mkConcurrently
+
+replicateA_ :: Applicative f => Int -> f a -> f ()
+replicateA_ i0 f =
+  loop i0
+  where
+    loop i
+      | i <= 0 = pure ()
+      | otherwise = f *> (loop $! i - 1)
 
 -- | Unlifted 'A.Concurrently'.
 --
 -- @since 0.1.0.0
-newtype Concurrently m a = Concurrently
-  { runConcurrently :: m a
-  }
+data Concurrently m a where
+  Action :: m a -> Concurrently m a
+  LiftA2 :: (a -> b -> c) -> Concurrently m a -> Concurrently m b -> Concurrently m c
+  Alt :: Concurrently m a -> Concurrently m a -> Concurrently m a
+  Empty :: Concurrently m a
 
--- | @since 0.1.0.0
-instance Monad m => Functor (Concurrently m) where
-  fmap f (Concurrently a) = Concurrently $ liftM f a
+deriving instance Functor m => Functor (Concurrently m)
+
+-- pattern Concurrently :: 
+
+mkConcurrently :: m a -> Concurrently m a
+mkConcurrently = Action
+
+data CAll a where
+  CAction :: IO a -> CAll a
+  CLiftA2 :: (a -> b -> c) -> CAll a -> CAll b -> CAll c
+  CFirst' :: CFirst a -> CAll a
+data CFirst a = CFirst (CAll a) (CAll a) [CAll a] -- 2-or-more list
+
+runCAll :: forall a. CAll a -> IO a
+runCAll (CAction x) = x -- silly optimization
+runCAll c0 = Control.Exception.uninterruptibleMask $ \restore -> do
+  countRef <- newIORef (0 :: Int)
+  let run
+        :: forall b. IO b
+        -> (Either SomeException b -> IO ())
+        -> IO C.ThreadId
+      -- really catching all exceptions including async exceptions
+      run action withRes = C.forkIO $ do
+        res <- Control.Exception.try (restore action)
+        atomicModifyIORef' countRef $ \i -> (i - 1, ())
+        withRes res
+
+      go
+        :: forall b. CAll b
+        -> IO (IO b, [C.ThreadId] -> [C.ThreadId])
+      go (CAction action) = do
+        var <- newEmptyMVar
+        tid <- run action (putMVar var)
+        pure (takeMVar var >>= either Control.Exception.throwIO pure, (tid:))
+      go (CLiftA2 f a b) = do
+        (a', tida) <- go a
+        (b', tidb) <- go b
+        pure (liftA2 f a' b', tida . tidb)
+      go (CFirst' (CFirst a b c)) = do
+        var <- newEmptyMVar
+        tids <- for (a:b:c) $ \io -> run io (void . tryPutMVar var)
+        tid <- C.forkIO $ restore $ do
+          _ <- readMVar var
+          traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
+        pure (readMVar var >>= either Control.Exception.throwIO pure, ((tid:tids)++))
+  (getRes, tidsFront) <- go c0
+  res <- Control.Exception.try $ getRes `Control.Exception.catch` \e ->
+    case e of
+      Control.Exception.BlockedIndefinitelyOnMVar -> getRes
+      -- Set up this way in case a new data constructor is added
+      -- _ -> Control.Exception.throwIO e
+  let tids = tidsFront []
+  count <- readIORef countRef
+  if Control.Exception.assert (count >= length tids) (count == length tids)
+    then pure ()
+    else traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
+  either Control.Exception.throwIO pure (res :: Either SomeException a)
+
+flatten :: forall m a. MonadUnliftIO m => Concurrently m a -> m (CAll a)
+flatten c0 = withRunInIO $ \run ->
+  let call :: forall b. Concurrently m b -> IO (CAll b)
+      call Empty = error "Cannot have an Empty without a non-Empty"
+      call (Alt x y) = do
+        x' <- cfirst x
+        y' <- cfirst y
+        case x' $ y' [] of
+          [] -> error "Cannot have an Empty without a non-Empty"
+          [a] -> pure a
+          a:b:c -> pure $ CFirst' $ CFirst a b c
+      call (Action action) = pure $ CAction $ run action
+      call (LiftA2 f a b) = do
+        a' <- call a
+        b' <- call b
+        pure $ CLiftA2 f a' b'
+
+      cfirst :: forall b. Concurrently m b -> IO ([CAll b] -> [CAll b])
+      cfirst Empty = pure id
+      cfirst (Alt x y) = do
+        x' <- cfirst x
+        y' <- cfirst y
+        pure $ x' . y'
+      cfirst x = do
+        x' <- call x
+        pure (x':)
+
+   in call c0
+
+runConcurrently :: MonadUnliftIO m => Concurrently m a -> m a
+runConcurrently = flatten >=> (liftIO . runCAll)
 
 -- | @since 0.1.0.0
 instance MonadUnliftIO m => Applicative (Concurrently m) where
-  pure = Concurrently . return
-  Concurrently fs <*> Concurrently as =
-    Concurrently $ liftM (\(f, a) -> f a) (concurrently fs as)
+  pure = Action . return
+  f <*> a = LiftA2 id f a
+  liftA2 = LiftA2
 
 -- | @since 0.1.0.0
 instance MonadUnliftIO m => Alternative (Concurrently m) where
-  empty = Concurrently $ liftIO (forever (threadDelay maxBound))
-  Concurrently as <|> Concurrently bs =
-    Concurrently $ liftM (either id id) (race as bs)
+  empty = Empty
+  (<|>) = Alt
 
 #if MIN_VERSION_base(4,9,0)
 -- | Only defined by @async@ for @base >= 4.9@.
