@@ -46,7 +46,8 @@ module UnliftIO.Async
     mapConcurrently, forConcurrently,
     mapConcurrently_, forConcurrently_,
     replicateConcurrently, replicateConcurrently_,
-    Concurrently, mkConcurrently, runConcurrently
+    Concurrently (..),
+    Conc, conc, runConc,
   ) where
 
 import Control.Applicative
@@ -287,7 +288,7 @@ concurrently_ a b = withRunInIO $ \run -> A.concurrently_ (run a) (run b)
 --
 -- @since 0.1.0.0
 mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
-mapConcurrently f = runConcurrently . traverse (mkConcurrently . f)
+mapConcurrently f = runConc . traverse (conc . f)
 
 -- | Unlifted 'A.forConcurrently'.
 --
@@ -299,7 +300,7 @@ forConcurrently = flip mapConcurrently
 --
 -- @since 0.1.0.0
 mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
-mapConcurrently_ f = runConcurrently . traverse_ (mkConcurrently . f)
+mapConcurrently_ f = runConc . traverse_ (conc . f)
 
 -- | Unlifted 'A.forConcurrently_'.
 --
@@ -311,7 +312,7 @@ forConcurrently_ = flip mapConcurrently_
 --
 -- @since 0.1.0.0
 replicateConcurrently :: MonadUnliftIO m => Int -> m a -> m [a]
-replicateConcurrently i = runConcurrently . replicateA i . mkConcurrently
+replicateConcurrently i = runConc . replicateA i . conc
 
 replicateA :: Applicative f => Int -> f a -> f [a]
 replicateA i0 f =
@@ -325,7 +326,7 @@ replicateA i0 f =
 --
 -- @since 0.1.0.0
 replicateConcurrently_ :: MonadUnliftIO m => Int -> m a -> m ()
-replicateConcurrently_ i = runConcurrently . replicateA_ i . mkConcurrently
+replicateConcurrently_ i = runConc . replicateA_ i . conc
 
 replicateA_ :: Applicative f => Int -> f a -> f ()
 replicateA_ i0 f =
@@ -338,18 +339,70 @@ replicateA_ i0 f =
 -- | Unlifted 'A.Concurrently'.
 --
 -- @since 0.1.0.0
-data Concurrently m a where
-  Action :: m a -> Concurrently m a
-  LiftA2 :: (a -> b -> c) -> Concurrently m a -> Concurrently m b -> Concurrently m c
-  Alt :: Concurrently m a -> Concurrently m a -> Concurrently m a
-  Empty :: Concurrently m a
+newtype Concurrently m a = Concurrently
+  { runConcurrently :: m a
+  }
 
-deriving instance Functor m => Functor (Concurrently m)
+-- | @since 0.1.0.0
+instance Monad m => Functor (Concurrently m) where
+  fmap f (Concurrently a) = Concurrently $ liftM f a
 
--- pattern Concurrently :: 
+-- | @since 0.1.0.0
+instance MonadUnliftIO m => Applicative (Concurrently m) where
+  pure = Concurrently . return
+  Concurrently fs <*> Concurrently as =
+    Concurrently $ liftM (\(f, a) -> f a) (concurrently fs as)
 
-mkConcurrently :: m a -> Concurrently m a
-mkConcurrently = Action
+-- | @since 0.1.0.0
+instance MonadUnliftIO m => Alternative (Concurrently m) where
+  empty = Concurrently $ liftIO (forever (threadDelay maxBound))
+  Concurrently as <|> Concurrently bs =
+    Concurrently $ liftM (either id id) (race as bs)
+
+#if MIN_VERSION_base(4,9,0)
+-- | Only defined by @async@ for @base >= 4.9@.
+--
+-- @since 0.1.0.0
+instance (MonadUnliftIO m, Semigroup a) => Semigroup (Concurrently m a) where
+  (<>) = liftA2 (<>)
+
+-- | @since 0.1.0.0
+instance (Semigroup a, Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
+  mempty = pure mempty
+  mappend = (<>)
+#else
+-- | @since 0.1.0.0
+instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
+  mempty = pure mempty
+  mappend = liftA2 mappend
+#endif
+
+-- More efficient Conc implementation
+
+-- | A more efficient alternative to 'Concurrently', which reduces the
+-- number of threads that need to be forked. For more information, see
+-- @FIXME link to blog post@. This is provided as a separate type to
+-- @Concurrently@ as it has a slightly different API.
+--
+-- Use the 'conc' function to construct values of type 'Conc', and
+-- 'runConc' to execute the composed actions.
+--
+-- @since 0.2.9.0
+data Conc m a where
+  Action :: m a -> Conc m a
+  LiftA2 :: (a -> b -> c) -> Conc m a -> Conc m b -> Conc m c
+  Alt :: Conc m a -> Conc m a -> Conc m a
+  Empty :: Conc m a
+
+deriving instance Functor m => Functor (Conc m)
+
+-- | Construct a value of type 'Conc' from an action. Compose these
+-- values using the typeclass instances (most commonly 'Applicative'
+-- and 'Alternative') and then run with 'runConc'.
+--
+-- @since 0.2.9.0
+conc :: m a -> Conc m a
+conc = Action
 
 data CAll a where
   CAction :: IO a -> CAll a
@@ -425,9 +478,9 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
     else traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
   either Control.Exception.throwIO pure (eres :: Either SomeException a)
 
-flatten :: forall m a. MonadUnliftIO m => Concurrently m a -> m (CBoth a)
+flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (CBoth a)
 flatten c0 = withRunInIO $ \run ->
-  let cboth :: forall b. Concurrently m b -> IO (CBoth b)
+  let cboth :: forall b. Conc m b -> IO (CBoth b)
       cboth Empty = error "Cannot have an Empty without a non-Empty"
       cboth (Alt x y) = do
         x' <- cfirst x
@@ -442,7 +495,7 @@ flatten c0 = withRunInIO $ \run ->
         b' <- cboth b
         pure $ CApp $ CLiftA2 f a' b'
 
-      cfirst :: forall b. Concurrently m b -> IO ([CAll b] -> [CAll b])
+      cfirst :: forall b. Conc m b -> IO ([CAll b] -> [CAll b])
       cfirst Empty = pure id
       cfirst (Alt x y) = do
         x' <- cfirst x
@@ -457,17 +510,20 @@ flatten c0 = withRunInIO $ \run ->
 
    in cboth c0
 
-runConcurrently :: MonadUnliftIO m => Concurrently m a -> m a
-runConcurrently = flatten >=> (liftIO . runCBoth)
+-- | Run a 'Conc' value on multiple threads.
+--
+-- @since 0.2.9.0
+runConc :: MonadUnliftIO m => Conc m a -> m a
+runConc = flatten >=> (liftIO . runCBoth)
 
 -- | @since 0.1.0.0
-instance MonadUnliftIO m => Applicative (Concurrently m) where
+instance MonadUnliftIO m => Applicative (Conc m) where
   pure = Action . return
   f <*> a = LiftA2 id f a
   liftA2 = LiftA2
 
 -- | @since 0.1.0.0
-instance MonadUnliftIO m => Alternative (Concurrently m) where
+instance MonadUnliftIO m => Alternative (Conc m) where
   empty = Empty
   (<|>) = Alt
 
@@ -475,16 +531,16 @@ instance MonadUnliftIO m => Alternative (Concurrently m) where
 -- | Only defined by @async@ for @base >= 4.9@.
 --
 -- @since 0.1.0.0
-instance (MonadUnliftIO m, Semigroup a) => Semigroup (Concurrently m a) where
+instance (MonadUnliftIO m, Semigroup a) => Semigroup (Conc m a) where
   (<>) = liftA2 (<>)
 
 -- | @since 0.1.0.0
-instance (Semigroup a, Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
+instance (Semigroup a, Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
   mempty = pure mempty
   mappend = (<>)
 #else
 -- | @since 0.1.0.0
-instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
+instance (Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
   mempty = pure mempty
   mappend = liftA2 mappend
 #endif

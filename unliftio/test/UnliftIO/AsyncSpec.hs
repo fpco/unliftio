@@ -4,6 +4,8 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck.Modifiers
 import UnliftIO
+import Control.Applicative
+import Control.Concurrent (threadDelay)
 
 data MyExc = MyExc
   deriving (Show, Eq, Typeable)
@@ -16,8 +18,15 @@ spec = do
     replicateConcurrently_ cnt $ atomicModifyIORef' ref $ \i -> (i + 1, ())
     readIORef ref `shouldReturn` cnt
   it "handles exceptions" $ do
-    runConcurrently (mkConcurrently (pure ()) *> mkConcurrently (throwIO MyExc))
+    runConc (conc (pure ()) *> conc (throwIO MyExc))
       `shouldThrow` (== MyExc)
   it "Applicative instance" $ do
-    runConcurrently (mkConcurrently (pure ()) *> mkConcurrently (throwIO MyExc))
+    runConc (conc (pure ()) *> conc (throwIO MyExc))
       `shouldThrow` (== MyExc)
+  it "Alternative instance" $ do
+    var <- newEmptyMVar
+    runConc $
+      conc (takeMVar var) <|>
+      conc (threadDelay maxBound) <|>
+      conc (pure ())
+    putMVar var () -- ensure the takeMVar doesn't get an exception
