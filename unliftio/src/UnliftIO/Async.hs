@@ -426,7 +426,15 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
           atomically $ do
             modifyTVar' countVar (+ 1)
             case res of
-              Left e -> void $ tryPutTMVar excVar e
+              Left e ->
+                case E.fromException e of
+                  -- If racing below kills off the other threads,
+                  -- don't treat that as our whole computation going
+                  -- down. May be better to have some other method for
+                  -- handling this. Or maybe the whole TMVar for
+                  -- exceptions is a mistake.
+                  Just A.AsyncCancelled -> pure ()
+                  Nothing -> void $ tryPutTMVar excVar e
               Right b -> putTMVar resVar b
         pure tid
 
@@ -473,7 +481,7 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
       -- _ -> Control.Exception.throwIO e
   let tids = mkTids []
   count <- atomically $ readTVar countVar
-  if Control.Exception.assert (count >= length tids) (count == length tids)
+  if Control.Exception.assert (count <= length tids) (count == length tids)
     then pure ()
     else traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
   either Control.Exception.throwIO pure (eres :: Either SomeException a)
