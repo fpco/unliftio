@@ -53,3 +53,4 @@ tests:
     dependencies:
     - hspec
     - unliftio
+    - QuickCheck

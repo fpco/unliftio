@@ -53,6 +53,7 @@ import Control.Applicative
 import qualified Control.Concurrent as C
 import qualified Control.Exception
 import Control.Concurrent.Async (Async)
+import Control.Concurrent.STM
 import Control.Exception (SomeException, Exception)
 import Data.IORef
 import Control.Concurrent.MVar
@@ -61,7 +62,7 @@ import qualified Control.Concurrent.Async as A
 import Control.Concurrent (threadDelay)
 import Control.Monad (forever, liftM, (>=>), void)
 import Control.Monad.IO.Unlift
-import Data.Foldable (traverse_)
+import Data.Foldable (traverse_, for_)
 import Data.Traversable (for)
 
 #if MIN_VERSION_base(4,9,0)
@@ -352,71 +353,94 @@ mkConcurrently = Action
 
 data CAll a where
   CAction :: IO a -> CAll a
-  CLiftA2 :: (a -> b -> c) -> CAll a -> CAll b -> CAll c
-  CFirst' :: CFirst a -> CAll a
+  CLiftA2 :: (a -> b -> c) -> CBoth a -> CBoth b -> CAll c
 data CFirst a = CFirst (CAll a) (CAll a) [CAll a] -- 2-or-more list
+data CBoth a = CApp (CAll a) | CAlt (CFirst a)
 
-runCAll :: forall a. CAll a -> IO a
-runCAll (CAction x) = x -- silly optimization
-runCAll c0 = Control.Exception.uninterruptibleMask $ \restore -> do
-  countRef <- newIORef (0 :: Int)
+runCBoth :: forall a. CBoth a -> IO a
+runCBoth (CApp (CAction x)) = x -- silly optimization
+runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
+  countVar <- newTVarIO (0 :: Int)
+  excVar <- newEmptyTMVarIO :: IO (TMVar SomeException)
   let run
         :: forall b. IO b
-        -> (Either SomeException b -> IO ())
+        -> TMVar b
         -> IO C.ThreadId
       -- really catching all exceptions including async exceptions
-      run action withRes = C.forkIO $ do
-        res <- Control.Exception.try (restore action)
-        atomicModifyIORef' countRef $ \i -> (i - 1, ())
-        withRes res
+      run action resVar = do
+        tid <- C.forkIO $ do
+          res <- Control.Exception.try (restore action)
+          atomically $ do
+            modifyTVar' countVar (+ 1)
+            case res of
+              Left e -> void $ tryPutTMVar excVar e
+              Right b -> putTMVar resVar b
+        pure tid
 
       go
+        :: forall b. CBoth b
+        -> IO (STM b, [C.ThreadId] -> [C.ThreadId])
+      go (CApp app) = goApp app
+      go (CAlt (CFirst a b c)) = do
+        pairs <- for (a:b:c) goApp
+        let (blockers, tids) = unzip pairs
+        var <- newEmptyTMVarIO
+        tid <- C.forkIO $ restore $ do
+          mres <-
+            atomically $
+              (Nothing <$ readTMVar excVar) <|>
+              (Just <$> foldr (<|>) retry blockers)
+          for_ mres $ \res -> do
+            atomically $ putTMVar var res
+            for_ tids $ \tids' ->
+              for_ (tids' []) $
+                flip Control.Exception.throwTo A.AsyncCancelled
+        let mkTids rest = tid : foldr ($) rest tids
+        pure (takeTMVar var, mkTids)
+
+      goApp
         :: forall b. CAll b
-        -> IO (IO b, [C.ThreadId] -> [C.ThreadId])
-      go (CAction action) = do
-        var <- newEmptyMVar
-        tid <- run action (putMVar var)
-        pure (takeMVar var >>= either Control.Exception.throwIO pure, (tid:))
-      go (CLiftA2 f a b) = do
+        -> IO (STM b, [C.ThreadId] -> [C.ThreadId])
+      goApp (CAction action) = do
+        var <- newEmptyTMVarIO
+        tid <- run action var
+        pure (takeTMVar var, (tid:))
+      goApp (CLiftA2 f a b) = do
         (a', tida) <- go a
         (b', tidb) <- go b
         pure (liftA2 f a' b', tida . tidb)
-      go (CFirst' (CFirst a b c)) = do
-        var <- newEmptyMVar
-        tids <- for (a:b:c) $ \io -> run io (void . tryPutMVar var)
-        tid <- C.forkIO $ restore $ do
-          _ <- readMVar var
-          traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
-        pure (readMVar var >>= either Control.Exception.throwIO pure, ((tid:tids)++))
-  (getRes, tidsFront) <- go c0
-  res <- Control.Exception.try $ getRes `Control.Exception.catch` \e ->
+  (getRes, mkTids) <- go c0
+  let getResOrExc = atomically $
+        (Left <$> readTMVar excVar) <|>
+        (Right <$> getRes)
+  eres <- getResOrExc `Control.Exception.catch` \e ->
     case e of
-      Control.Exception.BlockedIndefinitelyOnMVar -> getRes
+      Control.Exception.BlockedIndefinitelyOnSTM -> getResOrExc
       -- Set up this way in case a new data constructor is added
       -- _ -> Control.Exception.throwIO e
-  let tids = tidsFront []
-  count <- readIORef countRef
+  let tids = mkTids []
+  count <- atomically $ readTVar countVar
   if Control.Exception.assert (count >= length tids) (count == length tids)
     then pure ()
     else traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
-  either Control.Exception.throwIO pure (res :: Either SomeException a)
+  either Control.Exception.throwIO pure (eres :: Either SomeException a)
 
-flatten :: forall m a. MonadUnliftIO m => Concurrently m a -> m (CAll a)
+flatten :: forall m a. MonadUnliftIO m => Concurrently m a -> m (CBoth a)
 flatten c0 = withRunInIO $ \run ->
-  let call :: forall b. Concurrently m b -> IO (CAll b)
-      call Empty = error "Cannot have an Empty without a non-Empty"
-      call (Alt x y) = do
+  let cboth :: forall b. Concurrently m b -> IO (CBoth b)
+      cboth Empty = error "Cannot have an Empty without a non-Empty"
+      cboth (Alt x y) = do
         x' <- cfirst x
         y' <- cfirst y
         case x' $ y' [] of
           [] -> error "Cannot have an Empty without a non-Empty"
-          [a] -> pure a
-          a:b:c -> pure $ CFirst' $ CFirst a b c
-      call (Action action) = pure $ CAction $ run action
-      call (LiftA2 f a b) = do
-        a' <- call a
-        b' <- call b
-        pure $ CLiftA2 f a' b'
+          [a] -> pure $ CApp a
+          a:b:c -> pure $ CAlt $ CFirst a b c
+      cboth (Action action) = pure $ CApp $ CAction $ run action
+      cboth (LiftA2 f a b) = do
+        a' <- cboth a
+        b' <- cboth b
+        pure $ CApp $ CLiftA2 f a' b'
 
       cfirst :: forall b. Concurrently m b -> IO ([CAll b] -> [CAll b])
       cfirst Empty = pure id
@@ -425,13 +449,16 @@ flatten c0 = withRunInIO $ \run ->
         y' <- cfirst y
         pure $ x' . y'
       cfirst x = do
-        x' <- call x
-        pure (x':)
+        x' <- cboth x
+        pure $
+          case x' of
+            CApp a -> (a:)
+            CAlt (CFirst a b c) -> \rest -> a : b : c ++ rest
 
-   in call c0
+   in cboth c0
 
 runConcurrently :: MonadUnliftIO m => Concurrently m a -> m a
-runConcurrently = flatten >=> (liftIO . runCAll)
+runConcurrently = flatten >=> (liftIO . runCBoth)
 
 -- | @since 0.1.0.0
 instance MonadUnliftIO m => Applicative (Concurrently m) where
