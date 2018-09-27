@@ -476,10 +476,10 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
         (b', tidb) <- go b
         pure (liftA2 f a' b', tida . tidb)
   (getRes, mkTids) <- go c0
-  let getResOrExc = try $ restore $ atomically $
+  let getResOrExc = restore $ atomically $
         (Left <$> readTMVar excVar) <|>
         (Right <$> getRes)
-  eres <- getResOrExc `Control.Exception.catch` \e ->
+  eres <- Control.Exception.try $ getResOrExc `Control.Exception.catch` \e ->
     case e of
       Control.Exception.BlockedIndefinitelyOnSTM -> getResOrExc
       -- Set up this way in case a new data constructor is added
@@ -489,7 +489,7 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
   if Control.Exception.assert (count <= length tids) (count == length tids)
     then pure ()
     else traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
-  either Control.Exception.throwIO pure (eres :: Either SomeException a)
+  either Control.Exception.throwIO pure (join eres :: Either SomeException a)
 
 flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (CBoth a)
 flatten c0 = withRunInIO $ \run ->
