@@ -54,3 +54,16 @@ tests:
     - hspec
     - unliftio
     - QuickCheck
+
+benchmarks:
+  conc-bench:
+    source-dirs:
+    - bench
+    main: ConcBench.hs
+    dependencies:
+    - unliftio
+    - gauge
+    ghc-options:
+    - -O2
+    - -threaded
+    - -rtsopts
