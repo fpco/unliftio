@@ -75,3 +75,9 @@ spec = do
       2 -> error "it's 2"
       3 -> pure ()
       _ -> error $ "what? " ++ show res
+
+  it "runConc empty throws the right exception" $
+    runConc empty `shouldThrow` (== EmptyWithNoAlternative)
+
+  prop "no actual forking required" $ \i ->
+    runConc (pure (i :: Int)) `shouldReturn` i

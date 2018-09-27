@@ -1,5 +1,6 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
+{-# LANGUAGE DeriveDataTypeable #-}
 {-# LANGUAGE RankNTypes #-}
 {-# LANGUAGE GADTs #-}
 {-# LANGUAGE StandaloneDeriving #-}
@@ -48,23 +49,30 @@ module UnliftIO.Async
     replicateConcurrently, replicateConcurrently_,
     Concurrently (..),
     Conc, conc, runConc,
+    ConcException (..),
   ) where
 
 import Control.Applicative
 import qualified Control.Concurrent as C
-import qualified Control.Exception
 import Control.Concurrent.Async (Async)
 import Control.Concurrent.STM
 import Control.Exception (SomeException, Exception)
 import Data.IORef
+import Data.Typeable (Typeable)
 import Control.Concurrent.MVar
-import qualified UnliftIO.Exception as E
+import qualified UnliftIO.Exception as UE
 import qualified Control.Concurrent.Async as A
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever, liftM, (>=>), void, join)
+import Control.Monad (forever, liftM, (>=>), void, join, unless)
 import Control.Monad.IO.Unlift
 import Data.Foldable (traverse_, for_)
 import Data.Traversable (for)
+
+-- For the implementation of Conc below, we do not want any of the
+-- smart async exception handling logic from UnliftIO.Exception, since
+-- (eg) we're low-level enough to need to explicit be throwing async
+-- exceptions synchronously.
+import qualified Control.Exception as E
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
@@ -181,12 +189,12 @@ cancel = liftIO . A.cancel
 uninterruptibleCancel :: MonadIO m => Async a -> m ()
 uninterruptibleCancel = liftIO . A.uninterruptibleCancel
 
--- | Lifted 'A.cancelWith'. Additionally uses 'E.toAsyncException' to
+-- | Lifted 'A.cancelWith'. Additionally uses 'UE.toAsyncException' to
 -- ensure async exception safety.
 --
 -- @since 0.1.0.0
 cancelWith :: (Exception e, MonadIO m) => Async a -> e -> m ()
-cancelWith a e = liftIO (A.cancelWith a (E.toAsyncException e))
+cancelWith a e = liftIO (A.cancelWith a (UE.toAsyncException e))
 
 -- | Lifted 'A.waitAny'.
 --
@@ -406,6 +414,12 @@ instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
 -- * Children threads are always launched in an unmasked state, not
 --   the inherited state of the parent thread.
 --
+-- Note that it is a programmer error to use the @Alternative@
+-- instance in such a way that there are no alternatives to an empty,
+-- e.g. @runConc (empty <|> empty)@. In such a case, a 'ConcException'
+-- will be thrown. If there was an @Alternative@ in the standard
+-- libraries without @empty@, this library would use it instead.
+--
 -- @since 0.2.9.0
 data Conc m a where
   Action :: m a -> Conc m a
@@ -423,131 +437,12 @@ deriving instance Functor m => Functor (Conc m)
 conc :: m a -> Conc m a
 conc = Action
 
-data CAll a where
-  CAction :: IO a -> CAll a
-  CLiftA2 :: (a -> b -> c) -> CBoth a -> CBoth b -> CAll c
-data CFirst a = CFirst (CAll a) (CAll a) [CAll a] -- 2-or-more list
-data CBoth a = CApp (CAll a) | CAlt (CFirst a)
-
-runCBoth :: forall a. CBoth a -> IO a
-runCBoth (CApp (CAction x)) = x -- silly optimization
-runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
-  countVar <- newTVarIO (0 :: Int)
-  excVar <- newEmptyTMVarIO :: IO (TMVar SomeException)
-  let run
-        :: forall b. IO b
-        -> TMVar b
-        -> IO C.ThreadId
-      -- really catching all exceptions including async exceptions
-      run action resVar = do
-        tid <- C.forkIOWithUnmask $ \unmask -> do
-          res <- Control.Exception.try (unmask action)
-          atomically $ do
-            modifyTVar' countVar (+ 1)
-            case res of
-              Left e ->
-                case E.fromException e of
-                  -- If racing below kills off the other threads,
-                  -- don't treat that as our whole computation going
-                  -- down. May be better to have some other method for
-                  -- handling this. Or maybe the whole TMVar for
-                  -- exceptions is a mistake.
-                  Just A.AsyncCancelled -> pure ()
-                  Nothing -> void $ tryPutTMVar excVar e
-              Right b -> putTMVar resVar b
-        pure tid
-
-      go
-        :: forall b. CBoth b
-        -> IO (STM b, [C.ThreadId] -> [C.ThreadId])
-      go (CApp app) = goApp app
-      go (CAlt (CFirst a b c)) = do
-        pairs <- for (a:b:c) goApp
-        let (blockers, tids) = unzip pairs
-        var <- newEmptyTMVarIO
-        tid <- C.forkIOWithUnmask $ \unmask -> unmask $ do
-          mres <-
-            atomically $
-              (Nothing <$ readTMVar excVar) <|>
-              (Just <$> foldr (<|>) retry blockers)
-          atomically $ modifyTVar' countVar (+ 1)
-          for_ mres $ \res -> do
-            atomically $ putTMVar var res
-            for_ tids $ \tids' ->
-              for_ (tids' []) $
-                flip Control.Exception.throwTo A.AsyncCancelled
-        let mkTids rest = tid : foldr ($) rest tids
-        pure (takeTMVar var, mkTids)
-
-      goApp
-        :: forall b. CAll b
-        -> IO (STM b, [C.ThreadId] -> [C.ThreadId])
-      goApp (CAction action) = do
-        var <- newEmptyTMVarIO
-        tid <- run action var
-        pure (takeTMVar var, (tid:))
-      goApp (CLiftA2 f a b) = do
-        (a', tida) <- go a
-        (b', tidb) <- go b
-        pure (liftA2 f a' b', tida . tidb)
-  (getRes, mkTids) <- go c0
-  let getResOrExc = restore $ atomically $
-        (Left <$> readTMVar excVar) <|>
-        (Right <$> getRes)
-  eres <- Control.Exception.try $ getResOrExc `Control.Exception.catch` \e ->
-    case e of
-      Control.Exception.BlockedIndefinitelyOnSTM -> getResOrExc
-      -- Set up this way in case a new data constructor is added
-      -- _ -> Control.Exception.throwIO e
-  let tids = mkTids []
-      tidCount = length tids
-  count <- atomically $ readTVar countVar
-  if Control.Exception.assert (count <= tidCount) (count == tidCount)
-    then pure ()
-    else do
-      traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
-      atomically $ do
-        count' <- readTVar countVar
-        Control.Exception.assert (count' <= tidCount) $ check $ count' == tidCount
-  either Control.Exception.throwIO pure (join eres :: Either SomeException a)
-
-flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (CBoth a)
-flatten c0 = withRunInIO $ \run ->
-  let cboth :: forall b. Conc m b -> IO (CBoth b)
-      cboth Empty = error "Cannot have an Empty without a non-Empty"
-      cboth (Alt x y) = do
-        x' <- cfirst x
-        y' <- cfirst y
-        case x' $ y' [] of
-          [] -> error "Cannot have an Empty without a non-Empty"
-          [a] -> pure $ CApp a
-          a:b:c -> pure $ CAlt $ CFirst a b c
-      cboth (Action action) = pure $ CApp $ CAction $ run action
-      cboth (LiftA2 f a b) = do
-        a' <- cboth a
-        b' <- cboth b
-        pure $ CApp $ CLiftA2 f a' b'
-
-      cfirst :: forall b. Conc m b -> IO ([CAll b] -> [CAll b])
-      cfirst Empty = pure id
-      cfirst (Alt x y) = do
-        x' <- cfirst x
-        y' <- cfirst y
-        pure $ x' . y'
-      cfirst x = do
-        x' <- cboth x
-        pure $
-          case x' of
-            CApp a -> (a:)
-            CAlt (CFirst a b c) -> \rest -> a : b : c ++ rest
-
-   in cboth c0
 
 -- | Run a 'Conc' value on multiple threads.
 --
 -- @since 0.2.9.0
 runConc :: MonadUnliftIO m => Conc m a -> m a
-runConc = flatten >=> (liftIO . runCBoth)
+runConc = flatten >=> (liftIO . runFlat)
 
 -- | @since 0.1.0.0
 instance MonadUnliftIO m => Applicative (Conc m) where
@@ -557,7 +452,7 @@ instance MonadUnliftIO m => Applicative (Conc m) where
 
 -- | @since 0.1.0.0
 instance MonadUnliftIO m => Alternative (Conc m) where
-  empty = Empty
+  empty = Empty -- this is so ugly, we don't actually want to provide it!
   (<|>) = Alt
 
 #if MIN_VERSION_base(4,9,0)
@@ -577,3 +472,203 @@ instance (Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
   mempty = pure mempty
   mappend = liftA2 mappend
 #endif
+
+-------------------------
+-- Conc implementation --
+-------------------------
+
+-- Data types for flattening out the original @Conc@ into a simplified
+-- view. Goals:
+--
+-- * We want to get rid of the Empty data constructor. We don't want
+--   it anyway, it's only there because of the Alternative typeclass.
+--
+-- * We want to ensure that there is no nesting of Alt data
+--   constructors. There is a bookkeeping overhead to each time we
+--   need to track raced threads, and we want to minimize that
+--   bookkeeping.
+--
+-- * We want to ensure that, when racing, we're always racing at least
+--   two threads.
+--
+-- * We want to simplify down to IO.
+
+-- | Flattened structure, either Applicative or Alternative
+data Flat a
+  = FlatApp (FlatApp a)
+  -- | Flattened Alternative. Has at least 2 entries, which must be
+  -- FlatApp (no nesting of FlatAlts).
+  | FlatAlt (FlatApp a) (FlatApp a) [FlatApp a]
+
+-- | Flattened Applicative. No Alternative stuff directly in here, but
+-- may be in the children.
+data FlatApp a where
+  FlatAction :: IO a -> FlatApp a
+  FlatLiftA2 :: (a -> b -> c) -> Flat a -> Flat b -> FlatApp c
+
+-- | Things that can go wrong in the structure of a 'Conc'. These are
+-- /programmer errors/.
+--
+-- @since 0.2.9.0
+data ConcException
+  = EmptyWithNoAlternative
+  deriving (Show, Typeable, Eq)
+instance E.Exception ConcException
+
+-- | Turn a 'Conc' into a 'Flat'. Note that thanks to the ugliness of
+-- 'empty', this may fail, e.g. @flatten Empty@.
+flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (Flat a)
+flatten c0 = withRunInIO $ \run -> do
+
+  let both :: forall a. Conc m a -> IO (Flat a)
+      both Empty = E.throwIO EmptyWithNoAlternative
+      both (Action m) = pure $ FlatApp $ FlatAction $ run m
+      both (LiftA2 f a b) = do
+        a' <- both a
+        b' <- both b
+        pure $ FlatApp $ FlatLiftA2 f a' b'
+      both (Alt a b) = do
+        a' <- alt a
+        b' <- alt b
+        case a' $ b' [] of
+          [] -> E.throwIO EmptyWithNoAlternative
+          [x] -> pure $ FlatApp x
+          x:y:z -> pure $ FlatAlt x y z
+
+      -- Returns a difference list for cheaper concatenation
+      alt :: forall a. Conc m a -> IO ([FlatApp a] -> [FlatApp a])
+      alt Empty = pure id
+      alt (Alt a b) = do
+        a' <- alt a
+        b' <- alt b
+        pure $ a' . b'
+      alt (Action m) = pure (FlatAction (run m):)
+      alt (LiftA2 f a b) = do
+        a' <- both a
+        b' <- both b
+        pure (FlatLiftA2 f a' b':)
+
+  both c0
+
+-- | Run a @Flat a@ on multiple threads.
+runFlat :: Flat a -> IO a
+
+-- Silly, simple optimization
+runFlat (FlatApp (FlatAction io)) = io
+
+-- Start off with all exceptions masked so we can install proper cleanup.
+runFlat f0 = E.uninterruptibleMask $ \restore -> do
+  -- How many threads have terminated? We need to ensure we kill all
+  -- child threads and wait for them to die.
+  countVar <- newTVarIO 0
+
+  -- Forks off as many threads as necessary to run the given Flat a,
+  -- and returns:
+  --
+  -- * An STM action that will block until completion and return the
+  --   result.
+  --
+  -- * The IDs of all forked threads. These need to be tracked so they
+  --   can be killed (either when an exception is thrown, or when one
+  --   of the alternatives completes first).
+  --
+  -- It would be nice to have the STM action returned return an Either
+  -- and keep the SomeException values somewhat explicit, but in all
+  -- my testing this absolutely kills performance. Instead, we're
+  -- going to use a hack of providing a TMVar to fill up with a
+  -- SomeException when things fail.
+  let go :: forall a.
+            TMVar E.SomeException
+         -> Flat a
+         -> IO (STM a, [C.ThreadId])
+      go excVar (FlatApp (FlatAction io)) = do
+        var <- newEmptyTMVarIO
+        tid <- C.forkIOWithUnmask $ \restore -> do
+          res <- E.try $ restore io
+          atomically $ do
+            modifyTVar' countVar (+ 1)
+            case res of
+              Left e -> void $ tryPutTMVar excVar e
+              Right x -> putTMVar var x
+        pure (readTMVar var, [tid])
+      go excVar (FlatApp (FlatLiftA2 f a b)) = do
+        (a', tidsa) <- go excVar a
+        (b', tidsb) <- go excVar b
+        pure (liftA2 f a' b', tidsa ++ tidsb)
+
+      go excVar0 (FlatAlt x y z) = do
+        -- We're going to create our own excVar here to pass to the
+        -- children, so we can avoid letting the AsyncCancelled
+        -- exceptions we throw to the children here from propagating
+        -- and taking down the whole system.
+        excVar <- newEmptyTMVarIO
+        resVar <- newEmptyTMVarIO
+        pairs <- traverse (go excVar . FlatApp) (x:y:z)
+        let (blockers, tids) = unzip pairs
+
+        -- Fork a helper thread to wait for the first child to
+        -- complete, or for one of them to die with an exception so we
+        -- can propagate it to excVar0.
+        tid <- C.forkIOWithUnmask $ \unmask -> do
+          eres <- E.try $ atomically $ foldr
+            (\blocker rest -> (Right <$> blocker) <|> rest)
+            (Left <$> readTMVar excVar)
+            blockers
+          atomically $ do
+            modifyTVar' countVar (+ 1)
+            case eres of
+              -- We were killed by an async exception, do nothing.
+              Left (_ :: E.SomeException) -> pure ()
+              -- Child thread died, propagate it
+              Right (Left e) -> void $ tryPutTMVar excVar0 e
+              -- Successful result from one of the children
+              Right (Right x) -> putTMVar resVar x
+
+          -- And kill all of the threads
+          for_ (concat tids) $ \tid -> E.throwTo tid A.AsyncCancelled
+
+        pure (readTMVar resVar, tid : concat tids)
+
+  excVar <- newEmptyTMVarIO
+  (getRes, tids) <- go excVar f0
+  let tidCount = length tids
+      allDone count = E.assert (count <= tidCount) (count == tidCount)
+
+  -- Automatically retry if we get killed by a
+  -- BlockedIndefinitelyOnSTM. For more information, see:
+  --
+  -- * https://github.com/simonmar/async/issues/14
+  --
+  -- * https://github.com/simonmar/async/pull/15
+  let autoRetry action =
+        action `E.catch`
+        \E.BlockedIndefinitelyOnSTM -> autoRetry action
+
+  -- Restore the original masking state while blocking and catch
+  -- exceptions to allow the parent thread to be killed early.
+  res <- E.try $ restore $ autoRetry $ atomically $
+         (Left <$> readTMVar excVar) <|>
+         (Right <$> getRes)
+
+  count0 <- atomically $ readTVar countVar
+  unless (allDone count0) $ do
+    -- Kill all of the threads
+    for_ tids $ \tid -> E.throwTo tid A.AsyncCancelled
+
+    -- Wait for all of the threads to die. We're going to restore the
+    -- original masking state here, just in case there's a bug in the
+    -- cleanup code of a child thread, so that we can be killed by an
+    -- async exception.
+    restore $ atomically $ do
+      count <- readTVar countVar
+      check $ allDone count
+
+  -- Return the result or throw an exception. Yes, we could use
+  -- either or join, but explicit pattern matching is nicer here.
+  case res of
+    -- Parent thread was killed with an async exception
+    Left e -> E.throwIO (e :: E.SomeException)
+    -- Some child thread died
+    Right (Left e) -> E.throwIO e
+    -- Everything worked!
+    Right (Right x) -> pure x
