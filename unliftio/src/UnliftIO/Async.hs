@@ -296,53 +296,55 @@ concurrently_ a b = withRunInIO $ \run -> A.concurrently_ (run a) (run b)
 --
 -- @since 0.1.0.0
 mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
-mapConcurrently f = runConc . traverse (conc . f)
+mapConcurrently f t = withRunInIO $ \run -> runFlat $ traverse
+  (FlatApp . FlatAction . run . f)
+  t
+{-# INLINE mapConcurrently #-}
 
 -- | Unlifted 'A.forConcurrently'.
 --
 -- @since 0.1.0.0
 forConcurrently :: MonadUnliftIO m => Traversable t => t a -> (a -> m b) -> m (t b)
 forConcurrently = flip mapConcurrently
+{-# INLINE forConcurrently #-}
 
 -- | Unlifted 'A.mapConcurrently_'.
 --
 -- @since 0.1.0.0
 mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
-mapConcurrently_ f = runConc . traverse_ (conc . f)
+mapConcurrently_ f t = withRunInIO $ \run -> runFlat $ traverse_
+  (FlatApp . FlatAction . run . f)
+  t
+{-# INLINE mapConcurrently_ #-}
 
 -- | Unlifted 'A.forConcurrently_'.
 --
 -- @since 0.1.0.0
 forConcurrently_ :: MonadUnliftIO m => Foldable f => f a -> (a -> m b) -> m ()
 forConcurrently_ = flip mapConcurrently_
+{-# INLINE forConcurrently_ #-}
 
 -- | Unlifted 'A.replicateConcurrently'.
 --
 -- @since 0.1.0.0
 replicateConcurrently :: MonadUnliftIO m => Int -> m a -> m [a]
-replicateConcurrently i = runConc . replicateA i . conc
-
-replicateA :: Applicative f => Int -> f a -> f [a]
-replicateA i0 f =
-  loop i0
-  where
-    loop i
-      | i <= 0 = pure []
-      | otherwise = liftA2 (:) f (loop $! i - 1)
+replicateConcurrently cnt m =
+  case compare cnt 1 of
+    LT -> pure []
+    EQ -> (:[]) <$> m
+    GT -> mapConcurrently id (replicate cnt m)
+{-# INLINE replicateConcurrently #-}
 
 -- | Unlifted 'A.replicateConcurrently_'.
 --
 -- @since 0.1.0.0
 replicateConcurrently_ :: MonadUnliftIO m => Int -> m a -> m ()
-replicateConcurrently_ i = runConc . replicateA_ i . conc
-
-replicateA_ :: Applicative f => Int -> f a -> f ()
-replicateA_ i0 f =
-  loop i0
-  where
-    loop i
-      | i <= 0 = pure ()
-      | otherwise = f *> (loop $! i - 1)
+replicateConcurrently_ cnt m =
+  case compare cnt 1 of
+    LT -> pure ()
+    EQ -> void m
+    GT -> mapConcurrently_ id (replicate cnt m)
+{-# INLINE replicateConcurrently_ #-}
 
 -- | Unlifted 'A.Concurrently'.
 --
@@ -513,12 +515,22 @@ data Flat a
   -- FlatApp (no nesting of FlatAlts).
   | FlatAlt (FlatApp a) (FlatApp a) [FlatApp a]
 
+deriving instance Functor Flat
+instance Applicative Flat where
+  pure = FlatApp . pure
+  liftA2 f a b = FlatApp (FlatLiftA2 f a b)
+
 -- | Flattened Applicative. No Alternative stuff directly in here, but
 -- may be in the children.
 data FlatApp a where
   FlatAction :: IO a -> FlatApp a
   FlatLiftA2 :: (a -> b -> c) -> Flat a -> Flat b -> FlatApp c
   FlatPure :: a -> FlatApp a
+
+deriving instance Functor FlatApp
+instance Applicative FlatApp where
+  pure = FlatPure
+  liftA2 f a b = FlatLiftA2 f (FlatApp a) (FlatApp b)
 
 -- | Things that can go wrong in the structure of a 'Conc'. These are
 -- /programmer errors/.

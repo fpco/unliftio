@@ -25,6 +25,12 @@ main = defaultMain
       , bench "Conc" $ whnfIO $ runConc $
           let go i
                 | i == size = conc (pure i)
+                | otherwise = liftA2 (+) (conc (pure i)) (go (i + 1))
+           in go 1
+      -- This is cheating, since it's using our Pure data constructor
+      , bench "Conc, cheating" $ whnfIO $ runConc $
+          let go i
+                | i == size = pure i
                 | otherwise = liftA2 (+) (pure i) (go (i + 1))
            in go 1
       ]
