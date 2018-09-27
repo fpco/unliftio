@@ -449,44 +449,46 @@ deriving instance Functor m => Functor (Conc m)
 -- @since 0.2.9.0
 conc :: m a -> Conc m a
 conc = Action
-
+{-# INLINE conc #-}
 
 -- | Run a 'Conc' value on multiple threads.
 --
 -- @since 0.2.9.0
 runConc :: MonadUnliftIO m => Conc m a -> m a
 runConc = flatten >=> (liftIO . runFlat)
+{-# INLINE runConc #-}
 
--- | @since 0.1.0.0
+-- | @since 0.2.9.0
 instance MonadUnliftIO m => Applicative (Conc m) where
   pure = Pure
+  {-# INLINE pure #-}
   f <*> a = LiftA2 id f a
+  {-# INLINE (<*>) #-}
   -- See comment above on Then
   -- (*>) = Then
   liftA2 = LiftA2
+  {-# INLINE liftA2 #-}
+  a *> b = LiftA2 (\_ x -> x) a b
+  {-# INLINE (*>) #-}
 
--- | @since 0.1.0.0
+-- | @since 0.2.9.0
 instance MonadUnliftIO m => Alternative (Conc m) where
   empty = Empty -- this is so ugly, we don't actually want to provide it!
+  {-# INLINE empty #-}
   (<|>) = Alt
+  {-# INLINE (<|>) #-}
 
-#if MIN_VERSION_base(4,9,0)
--- | Only defined by @async@ for @base >= 4.9@.
---
--- @since 0.1.0.0
+-- | @since 0.2.9.0
 instance (MonadUnliftIO m, Semigroup a) => Semigroup (Conc m a) where
   (<>) = liftA2 (<>)
+  {-# INLINE (<>) #-}
 
--- | @since 0.1.0.0
-instance (Semigroup a, Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
-  mempty = pure mempty
-  mappend = (<>)
-#else
--- | @since 0.1.0.0
+-- | @since 0.2.9.0
 instance (Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
   mempty = pure mempty
+  {-# INLINE mempty #-}
   mappend = liftA2 mappend
-#endif
+  {-# INLINE mappend #-}
 
 -------------------------
 -- Conc implementation --
@@ -707,3 +709,4 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
     Right (Left e) -> E.throwIO e
     -- Everything worked!
     Right (Right x) -> pure x
+{-# INLINEABLE runFlat #-}
