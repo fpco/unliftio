@@ -456,6 +456,7 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
             atomically $
               (Nothing <$ readTMVar excVar) <|>
               (Just <$> foldr (<|>) retry blockers)
+          atomically $ modifyTVar' countVar (+ 1)
           for_ mres $ \res -> do
             atomically $ putTMVar var res
             for_ tids $ \tids' ->
@@ -485,10 +486,15 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
       -- Set up this way in case a new data constructor is added
       -- _ -> Control.Exception.throwIO e
   let tids = mkTids []
+      tidCount = length tids
   count <- atomically $ readTVar countVar
-  if Control.Exception.assert (count <= length tids) (count == length tids)
+  if Control.Exception.assert (count <= tidCount) (count == tidCount)
     then pure ()
-    else traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
+    else do
+      traverse_ (flip Control.Exception.throwTo A.AsyncCancelled) tids
+      atomically $ do
+        count' <- readTVar countVar
+        Control.Exception.assert (count' <= tidCount) $ check $ count' == tidCount
   either Control.Exception.throwIO pure (join eres :: Either SomeException a)
 
 flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (CBoth a)

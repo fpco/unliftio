@@ -54,7 +54,7 @@ spec = do
           throwSTM MyExc
         composed = foldr (*>) killer (replicate count worker)
     runConc composed `shouldThrow` (== MyExc)
-    atomically (readTVar var) `shouldReturn` count
+    atomically (readTVar var) `shouldReturn` 0
   it "first exception wins" $ do
     let composed = conc (throwIO MyExc) *> conc (threadDelay 1000000 >> error "foo")
     runConc composed `shouldThrow` (== MyExc)
@@ -62,3 +62,16 @@ spec = do
     uninterruptibleMask_ $
       runConc $ conc (threadDelay maxBound) <|>
         conc (getMaskingState `shouldReturn` Unmasked)
+  it "parent is killable" $ do
+    ref <- newIORef (0 :: Int)
+    mres <- timeout 50000 $ runConc $
+      conc (pure ()) *>
+      conc ((writeIORef ref 1 >> threadDelay maxBound >> writeIORef ref 2) `finally` writeIORef ref 3)
+    mres `shouldBe` Nothing
+    res <- readIORef ref
+    case res of
+      0 -> putStrLn "make timeout longer"
+      1 -> error "it's 1"
+      2 -> error "it's 2"
+      3 -> pure ()
+      _ -> error $ "what? " ++ show res
