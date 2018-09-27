@@ -424,6 +424,17 @@ instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
 data Conc m a where
   Action :: m a -> Conc m a
   LiftA2 :: (a -> b -> c) -> Conc m a -> Conc m b -> Conc m c
+
+  -- Just an optimization to avoid spawning extra threads
+  Pure :: a -> Conc m a
+
+  -- I thought there would be an optimization available from having a
+  -- data constructor that explicit doesn't care about the first
+  -- result. Turns out it doesn't help much: we still need to keep a
+  -- TMVar below to know when the thread completes.
+  --
+  -- Then :: Conc m a -> Conc m b -> Conc m b
+
   Alt :: Conc m a -> Conc m a -> Conc m a
   Empty :: Conc m a
 
@@ -446,8 +457,10 @@ runConc = flatten >=> (liftIO . runFlat)
 
 -- | @since 0.1.0.0
 instance MonadUnliftIO m => Applicative (Conc m) where
-  pure = Action . return
+  pure = Pure
   f <*> a = LiftA2 id f a
+  -- See comment above on Then
+  -- (*>) = Then
   liftA2 = LiftA2
 
 -- | @since 0.1.0.0
@@ -505,6 +518,7 @@ data Flat a
 data FlatApp a where
   FlatAction :: IO a -> FlatApp a
   FlatLiftA2 :: (a -> b -> c) -> Flat a -> Flat b -> FlatApp c
+  FlatPure :: a -> FlatApp a
 
 -- | Things that can go wrong in the structure of a 'Conc'. These are
 -- /programmer errors/.
@@ -534,6 +548,7 @@ flatten c0 = withRunInIO $ \run -> do
           [] -> E.throwIO EmptyWithNoAlternative
           [x] -> pure $ FlatApp x
           x:y:z -> pure $ FlatAlt x y z
+      both (Pure a) = pure $ FlatApp $ FlatPure a
 
       -- Returns a difference list for cheaper concatenation
       alt :: forall a. Conc m a -> IO ([FlatApp a] -> [FlatApp a])
@@ -547,14 +562,16 @@ flatten c0 = withRunInIO $ \run -> do
         a' <- both a
         b' <- both b
         pure (FlatLiftA2 f a' b':)
+      alt (Pure a) = pure (FlatPure a:)
 
   both c0
 
 -- | Run a @Flat a@ on multiple threads.
 runFlat :: Flat a -> IO a
 
--- Silly, simple optimization
+-- Silly, simple optimizations
 runFlat (FlatApp (FlatAction io)) = io
+runFlat (FlatApp (FlatPure x)) = pure x
 
 -- Start off with all exceptions masked so we can install proper cleanup.
 runFlat f0 = E.uninterruptibleMask $ \restore -> do
@@ -581,6 +598,7 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
             TMVar E.SomeException
          -> Flat a
          -> IO (STM a, [C.ThreadId])
+      go _excVar (FlatApp (FlatPure x)) = pure (pure x, [])
       go excVar (FlatApp (FlatAction io)) = do
         var <- newEmptyTMVarIO
         tid <- C.forkIOWithUnmask $ \restore -> do

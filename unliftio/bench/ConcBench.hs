@@ -37,6 +37,10 @@ main = defaultMain
         foldr (<|>) empty (replicate size (pure ()))
     , bench "Conc" $ whnfIO $
         runConc $
+        foldr (<|>) empty (replicate size (conc (pure ())))
+    -- This is cheating, since it's using our Pure data constructor
+    , bench "Conc, cheating" $ whnfIO $
+        runConc $
         foldr (<|>) empty (replicate size (pure ()))
     ]
   ]
