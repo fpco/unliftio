@@ -12,12 +12,33 @@ sizes f = map
 
 sum' :: [Int] -> Int
 sum' = foldl' (+) 0
+{-# INLINE sum' #-}
+
+replicateA_ :: Applicative f => Int -> f () -> f ()
+replicateA_ cnt0 f =
+    let go 1 = f
+        go i = f *> go (i - 1)
+     in go cnt0
+{-# INLINE replicateA_ #-}
 
 main :: IO ()
 main = defaultMain
-  [ bgroup "concurrently, no results" $ sizes $ \size ->
+  [ bgroup "concurrently, minimal work" $ sizes $ \size ->
+    [ bench "A.replicateConcurrently_" $ whnfIO $ do
+        ref <- newIORef (0 :: Int)
+        A.replicateConcurrently_ size $ atomicModifyIORef' ref $ \i -> (i + 1, ())
+    , bench "replicateConcurrently_" $ whnfIO $ do
+        ref <- newIORef (0 :: Int)
+        replicateConcurrently_ size $ atomicModifyIORef' ref $ \i -> (i + 1, ())
+    , bench "Conc" $ whnfIO $ do
+        ref <- newIORef (0 :: Int)
+        runConc $ replicateA_ size $ conc $ atomicModifyIORef' ref $ \i -> (i + 1, ())
+    ]
+  , bgroup "concurrently, no results" $ sizes $ \size ->
     [ bench "A.replicateConcurrently_" $ whnfIO $ A.replicateConcurrently_ size (pure ())
     , bench "replicateConcurrently_" $ whnfIO $ replicateConcurrently_ size (pure ())
+    , bench "Conc" $ whnfIO $ runConc $ replicateA_ size $ conc $ pure ()
+    , bench "Conc, cheating" $ whnfIO $ runConc $ replicateA_ size $ pure ()
     ]
   , bgroup "concurrently, with results" $ sizes $ \size ->
       [ bench "A.mapConcurrently" $ whnfIO $ fmap sum' $ A.mapConcurrently pure [1..size]
