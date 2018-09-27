@@ -541,6 +541,9 @@ data ConcException
   deriving (Show, Typeable, Eq)
 instance E.Exception ConcException
 
+-- | Simple difference list, for nicer types below
+type DList a = [a] -> [a]
+
 -- | Turn a 'Conc' into a 'Flat'. Note that thanks to the ugliness of
 -- 'empty', this may fail, e.g. @flatten Empty@.
 flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (Flat a)
@@ -563,7 +566,7 @@ flatten c0 = withRunInIO $ \run -> do
       both (Pure a) = pure $ FlatApp $ FlatPure a
 
       -- Returns a difference list for cheaper concatenation
-      alt :: forall a. Conc m a -> IO ([FlatApp a] -> [FlatApp a])
+      alt :: forall a. Conc m a -> IO (DList (FlatApp a))
       alt Empty = pure id
       alt (Alt a b) = do
         a' <- alt a
@@ -609,8 +612,8 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   let go :: forall a.
             TMVar E.SomeException
          -> Flat a
-         -> IO (STM a, [C.ThreadId])
-      go _excVar (FlatApp (FlatPure x)) = pure (pure x, [])
+         -> IO (STM a, DList C.ThreadId)
+      go _excVar (FlatApp (FlatPure x)) = pure (pure x, id)
       go excVar (FlatApp (FlatAction io)) = do
         var <- newEmptyTMVarIO
         tid <- C.forkIOWithUnmask $ \restore -> do
@@ -620,11 +623,11 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
             case res of
               Left e -> void $ tryPutTMVar excVar e
               Right x -> putTMVar var x
-        pure (readTMVar var, [tid])
+        pure (readTMVar var, (tid:))
       go excVar (FlatApp (FlatLiftA2 f a b)) = do
         (a', tidsa) <- go excVar a
         (b', tidsb) <- go excVar b
-        pure (liftA2 f a' b', tidsa ++ tidsb)
+        pure (liftA2 f a' b', tidsa . tidsb)
 
       go excVar0 (FlatAlt x y z) = do
         -- We're going to create our own excVar here to pass to the
@@ -655,13 +658,15 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
               Right (Right x) -> putTMVar resVar x
 
           -- And kill all of the threads
-          for_ (concat tids) $ \tid -> E.throwTo tid A.AsyncCancelled
+          for_ tids $ \tids' ->
+            for_ (tids' []) $ \tid -> E.throwTo tid A.AsyncCancelled
 
-        pure (readTMVar resVar, tid : concat tids)
+        pure (readTMVar resVar, \rest -> tid : foldr ($) rest tids)
 
   excVar <- newEmptyTMVarIO
-  (getRes, tids) <- go excVar f0
-  let tidCount = length tids
+  (getRes, mkTids) <- go excVar f0
+  let tids = mkTids []
+      tidCount = length tids
       allDone count = E.assert (count <= tidCount) (count == tidCount)
 
   -- Automatically retry if we get killed by a
