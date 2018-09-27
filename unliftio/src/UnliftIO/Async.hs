@@ -61,7 +61,7 @@ import Control.Concurrent.MVar
 import qualified UnliftIO.Exception as E
 import qualified Control.Concurrent.Async as A
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever, liftM, (>=>), void)
+import Control.Monad (forever, liftM, (>=>), void, join)
 import Control.Monad.IO.Unlift
 import Data.Foldable (traverse_, for_)
 import Data.Traversable (for)
@@ -387,6 +387,11 @@ instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
 -- Use the 'conc' function to construct values of type 'Conc', and
 -- 'runConc' to execute the composed actions.
 --
+-- Differences in behavior:
+--
+-- * Children threads are always launched in an unmasked state, not
+--   the inherited state of the parent thread.
+--
 -- @since 0.2.9.0
 data Conc m a where
   Action :: m a -> Conc m a
@@ -421,8 +426,8 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
         -> IO C.ThreadId
       -- really catching all exceptions including async exceptions
       run action resVar = do
-        tid <- C.forkIO $ do
-          res <- Control.Exception.try (restore action)
+        tid <- C.forkIOWithUnmask $ \unmask -> do
+          res <- Control.Exception.try (unmask action)
           atomically $ do
             modifyTVar' countVar (+ 1)
             case res of
@@ -446,7 +451,7 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
         pairs <- for (a:b:c) goApp
         let (blockers, tids) = unzip pairs
         var <- newEmptyTMVarIO
-        tid <- C.forkIO $ restore $ do
+        tid <- C.forkIOWithUnmask $ \unmask -> unmask $ do
           mres <-
             atomically $
               (Nothing <$ readTMVar excVar) <|>
@@ -471,7 +476,7 @@ runCBoth c0 = Control.Exception.uninterruptibleMask $ \restore -> do
         (b', tidb) <- go b
         pure (liftA2 f a' b', tida . tidb)
   (getRes, mkTids) <- go c0
-  let getResOrExc = atomically $
+  let getResOrExc = try $ restore $ atomically $
         (Left <$> readTMVar excVar) <|>
         (Right <$> getRes)
   eres <- getResOrExc `Control.Exception.catch` \e ->

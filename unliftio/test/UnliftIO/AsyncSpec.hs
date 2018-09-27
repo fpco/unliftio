@@ -7,6 +7,7 @@ import UnliftIO
 import Control.Applicative
 import Control.Concurrent (threadDelay)
 import Control.Concurrent.STM (throwSTM)
+import Control.Exception (getMaskingState, MaskingState (Unmasked))
 
 data MyExc = MyExc
   deriving (Show, Eq, Typeable)
@@ -57,3 +58,7 @@ spec = do
   it "first exception wins" $ do
     let composed = conc (throwIO MyExc) *> conc (threadDelay 1000000 >> error "foo")
     runConc composed `shouldThrow` (== MyExc)
+  it "child masking state" $
+    uninterruptibleMask_ $
+      runConc $ conc (threadDelay maxBound) <|>
+        conc (getMaskingState `shouldReturn` Unmasked)
