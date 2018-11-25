@@ -352,7 +352,8 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- @
 --
 --
--- Let's modify the above program such that the threads is less than the number of items in the list:
+-- Let's modify the above program such that the threads is less than
+-- the number of items in the list:
 --
 -- @
 -- import Say
@@ -368,7 +369,6 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- main = do
 --   yx \<- pooledMapConcurrently 3 (\\x -\> action x) [1..5]
 --   print yx
--- 
 -- @
 -- On executing you can see that only three threads are active totally:
 -- 
@@ -382,14 +382,17 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- [1,2,3,4,5]
 -- @
 --
-pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) => Int -- ^ Max. number of threads. Should not be less than 1.
+pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) 
+                      => Int -- ^ Max. number of threads. Should not be less than 1.
                       -> (a -> m b) -> t a -> m (t b)
-pooledMapConcurrently numProcs f xs = withRunInIO $ \run -> pooledMapConcurrentlyIO numProcs (run . f) xs
+pooledMapConcurrently numProcs f xs = 
+    withRunInIO $ \run -> pooledMapConcurrentlyIO numProcs (run . f) xs
 
 pooledMapConcurrentlyIO :: Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
-pooledMapConcurrentlyIO numProcs f xs = if (numProcs < 1)
-                                        then error "pooledMapconcurrently: number of threads <= 1"
-                                        else pooledMapConcurrentlyIO' numProcs f xs
+pooledMapConcurrentlyIO numProcs f xs = 
+    if (numProcs < 1)
+    then error "pooledMapconcurrently: number of threads <= 1"
+    else pooledMapConcurrentlyIO' numProcs f xs
 
 pooledMapConcurrentlyIO' ::
   Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
