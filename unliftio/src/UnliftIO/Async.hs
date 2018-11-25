@@ -339,7 +339,7 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 --   print yx
 -- @
 --
--- On executing you can see the five threads that have been spawned:
+-- On executing you can see that five threads have been spawned:
 -- 
 -- @
 -- \$ ./pool
