@@ -38,13 +38,17 @@ module UnliftIO.Async
     -- ** Linking
     link, link2,
 
+    -- ** Pooled concurrency
+    pooledMapConcurrently,
+
     -- * Convenient utilities
     race, race_,
     concurrently, concurrently_,
     mapConcurrently, forConcurrently,
     mapConcurrently_, forConcurrently_,
     replicateConcurrently, replicateConcurrently_,
-    Concurrently(..),
+    Concurrently(..)
+                
   ) where
 
 import Control.Applicative
@@ -316,7 +320,69 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- element, it does pooling from a set of threads. This is useful in
 -- scenarios where resource consumption is bounded and for use cases
 -- where too many concurrent tasks aren't allowed.
-pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) => Int -- Max. number of threads. Should not be less than 1.
+--
+-- === __Example usage__
+--
+-- @
+-- import Say
+-- 
+-- action :: Int -> IO Int
+-- action n = do
+--   tid <- myThreadId
+--   sayString $ show tid
+--   threadDelay (2 * 10^6) -- 2 seconds
+--   return n
+-- 
+-- main :: IO ()
+-- main = do
+--   yx \<- pooledMapConcurrently 5 (\\x -\> action x) [1..5]
+--   print yx
+-- @
+--
+-- On executing you can see the five threads that have been spawned:
+-- 
+-- @
+-- \$ ./pool
+-- ThreadId 36
+-- ThreadId 38
+-- ThreadId 40
+-- ThreadId 42
+-- ThreadId 44
+-- [1,2,3,4,5]
+-- @
+--
+--
+-- Let's modify the above program such that the threads is less than the number of items in the list:
+--
+-- @
+-- import Say
+-- 
+-- action :: Int -> IO Int
+-- action n = do
+--   tid <- myThreadId
+--   sayString $ show tid
+--   threadDelay (2 * 10^6) -- 2 seconds
+--   return n
+-- 
+-- main :: IO ()
+-- main = do
+--   yx \<- pooledMapConcurrently 3 (\\x -\> action x) [1..5]
+--   print yx
+-- 
+-- @
+-- On executing you can see that only three threads are active totally:
+-- 
+-- @
+-- \$ ./pool
+-- ThreadId 35
+-- ThreadId 37
+-- ThreadId 39
+-- ThreadId 35
+-- ThreadId 39
+-- [1,2,3,4,5]
+-- @
+--
+pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) => Int -- ^ Max. number of threads. Should not be less than 1.
                       -> (a -> m b) -> t a -> m (t b)
 pooledMapConcurrently numProcs f xs = withRunInIO $ \run -> pooledMapConcurrentlyIO numProcs (run . f) xs
 
