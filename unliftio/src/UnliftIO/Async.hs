@@ -1,5 +1,7 @@
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE RankNTypes #-}
+{-# LANGUAGE ScopedTypeVariables#-}
+{-# LANGUAGE TupleSections#-}
 -- | Unlifted "Control.Concurrent.Async".
 --
 -- @since 0.1.0.0
@@ -46,6 +48,8 @@ module UnliftIO.Async
   ) where
 
 import Control.Applicative
+import Data.IORef (IORef, readIORef, writeIORef, newIORef)
+import Control.Concurrent.MVar (MVar, modifyMVar, newMVar)
 import Control.Concurrent.Async (Async)
 import Control.Exception (SomeException, Exception)
 import qualified UnliftIO.Exception as E
@@ -307,6 +311,45 @@ replicateConcurrently i m = withRunInIO $ \run -> A.replicateConcurrently i (run
 -- @since 0.1.0.0
 replicateConcurrently_ :: MonadUnliftIO m => Int -> m a -> m ()
 replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (run m)
+
+-- | Like 'mapConcurrently' from async, but instead of one thread per
+-- element, it does pooling from a set of threads. This is useful in
+-- scenarios where resource consumption is bounded and for use cases
+-- where too many concurrent tasks aren't allowed.
+pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) => Int -- Max. number of threads. Should not be less than 1.
+                      -> (a -> m b) -> t a -> m (t b)
+pooledMapConcurrently numProcs f xs = withRunInIO $ \run -> pooledMapConcurrentlyIO numProcs (run . f) xs
+
+pooledMapConcurrentlyIO :: Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
+pooledMapConcurrentlyIO numProcs f xs = if (numProcs < 1)
+                                        then error "pooledMapconcurrently: number of threads <= 1"
+                                        else pooledMapConcurrentlyIO' numProcs f xs
+
+pooledMapConcurrentlyIO' ::
+  Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
+pooledMapConcurrentlyIO' numProcs f xs = do
+  -- prepare one IORef per result...
+  jobs :: t (a, IORef b) <-
+    for xs (\x -> (x, ) <$> newIORef (error "pooledMapConcurrently: empty IORef"))
+  -- ...put all the inputs in a queue..
+  jobsVar :: MVar [(a, IORef b)] <- newMVar (toList jobs)
+  -- ...run `numProcs` threads in parallel, each
+  -- of them consuming the queue and filling in
+  -- the respective IORefs.
+  forConcurrently_ [1..numProcs] $ \_ -> do
+    let loop  = do
+          mbJob :: Maybe (a, IORef b) <- modifyMVar jobsVar $ \x -> case x of
+            [] -> return ([], Nothing)
+            var : vars -> return (vars, Just var)
+          case mbJob of
+            Nothing -> return ()
+            Just (x, outRef) -> do
+              y <- f x
+              writeIORef outRef y
+              loop
+    loop
+  -- Read all the IORefs
+  for jobs (\(_, outputRef) -> readIORef outputRef)
 
 -- | Unlifted 'A.Concurrently'.
 --
