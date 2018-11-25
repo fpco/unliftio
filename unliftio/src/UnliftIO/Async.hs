@@ -58,9 +58,9 @@ import Control.Monad.IO.Unlift
 import Data.Semigroup
 #else
 import Data.Monoid
-import Data.Foldable (Foldable)
-import Data.Traversable (Traversable)
 #endif
+import Data.Foldable (Foldable, toList)
+import Data.Traversable (Traversable, for)
 
 -- | Unlifted 'A.async'.
 --
