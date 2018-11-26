@@ -4,6 +4,7 @@ import Test.Hspec
 import Control.Concurrent
 import Data.List (nub, sort)
 import Test.QuickCheck
+import Data.Functor ((<$>))
 import UnliftIO
 
 spec :: Spec
@@ -52,7 +53,7 @@ spec = do
                     go i = do
                         tid <- myThreadId
                         atomically $ modifyTVar threadIdsVar (tid :)
-                        pure i
+                        return i
                 list' <- pooledMapConcurrentlyN threads go list
                 sort list' `shouldBe` sort list
                 tids <- readTVarIO threadIdsVar
