@@ -17,14 +17,17 @@ spec = do
          threadDelay (2 * 10^6)
          myThreadId
                  
-  describe "pooled mapConcurrency" $ do
+  describe "pooled mapConcurrencyN" $ do
     it "Throws exception properly" $ do
-       (pooledMapConcurrently 5 exAction [1..5]) `shouldThrow` anyErrorCall
-    
-    it "spawns five threads for five concurrent tasks" $ do
-       xs <- (pooledMapConcurrently 5 action [1..5])
-       (length $ nub xs) `shouldBe` 5
+       (pooledMapConcurrentlyN 5 exAction [1..5]) `shouldThrow` anyErrorCall
 
-    it "spawns three threads for five concurrent tasks" $ do
-       xs <- (pooledMapConcurrently 3 action [1..5])
-       (length $ nub xs) `shouldBe` 3
+    it "total thread should be >= 1" $ do
+       (pooledMapConcurrentlyN 0 action [1..5]) `shouldThrow` anyErrorCall
+    
+    it "should not spawn more than five threads for five concurrent tasks" $ do
+       xs <- (pooledMapConcurrentlyN 5 action [1..5])
+       (length $ nub xs) `shouldSatisfy` (<= (5 :: Int))
+
+    it "should not spawn more than three threads for five concurrent tasks" $ do
+       xs <- (pooledMapConcurrentlyN 3 action [1..5])
+       (length $ nub xs) `shouldSatisfy` (<= (3 :: Int))
