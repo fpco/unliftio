@@ -39,6 +39,7 @@ module UnliftIO.Async
     link, link2,
 
     -- ** Pooled concurrency
+    pooledMapConcurrentlyN,
     pooledMapConcurrently,
 
     -- * Convenient utilities
@@ -58,7 +59,7 @@ import Control.Concurrent.Async (Async)
 import Control.Exception (SomeException, Exception)
 import qualified UnliftIO.Exception as E
 import qualified Control.Concurrent.Async as A
-import Control.Concurrent (threadDelay)
+import Control.Concurrent (threadDelay, getNumCapabilities)
 import Control.Monad (forever, liftM)
 import Control.Monad.IO.Unlift
 
@@ -382,16 +383,28 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- [1,2,3,4,5]
 -- @
 --
-pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) 
+-- @since 0.2.9
+pooledMapConcurrentlyN :: (MonadUnliftIO m, Traversable t) 
                       => Int -- ^ Max. number of threads. Should not be less than 1.
                       -> (a -> m b) -> t a -> m (t b)
-pooledMapConcurrently numProcs f xs = 
+pooledMapConcurrentlyN numProcs f xs = 
     withRunInIO $ \run -> pooledMapConcurrentlyIO numProcs (run . f) xs
+
+-- | Similar to 'pooledMapConcurrentlyN' but with number of threads
+-- set from 'getNumCapabilities'. Usually this is useful for CPU bound
+-- tasks.
+--
+-- @since 0.2.9
+pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) => (a -> m b) -> t a -> m (t b)
+pooledMapConcurrently f xs = do
+  withRunInIO $ \run -> do
+    numProcs <- getNumCapabilities
+    pooledMapConcurrentlyIO numProcs (run . f) xs
 
 pooledMapConcurrentlyIO :: Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
 pooledMapConcurrentlyIO numProcs f xs = 
     if (numProcs < 1)
-    then error "pooledMapconcurrently: number of threads <= 1"
+    then error "pooledMapconcurrentlyIO: number of threads < 1"
     else pooledMapConcurrentlyIO' numProcs f xs
 
 pooledMapConcurrentlyIO' ::
@@ -399,7 +412,7 @@ pooledMapConcurrentlyIO' ::
 pooledMapConcurrentlyIO' numProcs f xs = do
   -- prepare one IORef per result...
   jobs :: t (a, IORef b) <-
-    for xs (\x -> (x, ) <$> newIORef (error "pooledMapConcurrently: empty IORef"))
+    for xs (\x -> (x, ) <$> newIORef (error "pooledMapConcurrentlyIO': empty IORef"))
   -- ...put all the inputs in a queue..
   jobsVar :: MVar [(a, IORef b)] <- newMVar (toList jobs)
   -- ...run `numProcs` threads in parallel, each
@@ -419,6 +432,7 @@ pooledMapConcurrentlyIO' numProcs f xs = do
     loop
   -- Read all the IORefs
   for jobs (\(_, outputRef) -> readIORef outputRef)
+
 
 -- | Unlifted 'A.Concurrently'.
 --
