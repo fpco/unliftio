@@ -95,7 +95,10 @@ spec = do
         conc (takeMVar var) <|>
         conc (threadDelay maxBound) <|>
         conc (threadDelay 100 >> pure ())
-      putMVar var () -- ensure the takeMVar doesn't get an exception
+      -- if a GC runs at the right time, it's possible that both `takeMVar` and
+      -- `runConc` itself will be in a "blocked indefinitely on MVar" situation,
+      -- adding line bellow to avoid that
+      putMVar var ()
 
     it "finishes all threads that didn't finish first" $ do
       ref <- newIORef []
