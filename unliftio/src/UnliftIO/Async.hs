@@ -346,7 +346,7 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- 
 -- main :: IO ()
 -- main = do
---   yx \<- pooledMapConcurrently 5 (\\x -\> action x) [1..5]
+--   yx \<- pooledMapConcurrentlyN 5 (\\x -\> action x) [1..5]
 --   print yx
 -- @
 --
@@ -378,7 +378,7 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- 
 -- main :: IO ()
 -- main = do
---   yx \<- pooledMapConcurrently 3 (\\x -\> action x) [1..5]
+--   yx \<- pooledMapConcurrentlyN 3 (\\x -\> action x) [1..5]
 --   print yx
 -- @
 -- On executing you can see that only three threads are active totally:
