@@ -43,6 +43,10 @@ module UnliftIO.Async
     pooledMapConcurrently,
     pooledMapConcurrentlyN_,
     pooledMapConcurrently_,
+    pooledReplicateConcurrentlyN,
+    pooledReplicateConcurrently,
+    pooledReplicateConcurrentlyN_,
+    pooledReplicateConcurrently_,
 
     -- * Convenient utilities
     race, race_,
@@ -476,6 +480,50 @@ pooledMapConcurrently_ f t =
   withRunInIO $ \run -> do
     numProcs <- getNumCapabilities
     pooledMapConcurrentlyIO_ numProcs (run . f) t
+
+-- | Pooled version of 'replicateConcurrently'. Performs the action in
+-- the pooled threads.
+--
+-- @since 0.2.9
+pooledReplicateConcurrentlyN :: (MonadUnliftIO m) 
+                             => Int -- ^ Max. number of threads. Should not be less than 1.
+                             -> Int -- ^ Number of times to perform the action.
+                             -> m a -> m [a]
+pooledReplicateConcurrentlyN numProcs cnt task = 
+  pooledMapConcurrentlyN numProcs (\_ -> task) [1..cnt]
+
+-- | Similar to 'pooledReplicateConcurrentlyN' but with number of
+-- threads set from 'getNumCapabilities'. Usually this is useful for
+-- CPU bound tasks.
+--
+-- @since 0.2.9
+pooledReplicateConcurrently :: (MonadUnliftIO m) 
+                            => Int -- ^ Number of times to perform the action.
+                            -> m a -> m [a]
+pooledReplicateConcurrently cnt task = 
+  pooledMapConcurrently (\_ -> task) [1..cnt]
+
+-- | Pooled version of 'replicateConcurrently_'. Performs the action in
+-- the pooled threads.
+--
+-- @since 0.2.9
+pooledReplicateConcurrentlyN_ :: (MonadUnliftIO m) 
+                              => Int -- ^ Max. number of threads. Should not be less than 1.
+                              -> Int -- ^ Number of times to perform the action.
+                              -> m a -> m ()
+pooledReplicateConcurrentlyN_ numProcs cnt task = 
+  pooledMapConcurrentlyN_ numProcs (\_ -> task) [1..cnt]
+
+-- | Similar to 'pooledReplicateConcurrently_' but with number of
+-- threads set from 'getNumCapabilities'. Usually this is useful for
+-- CPU bound tasks.
+--
+-- @since 0.2.9
+pooledReplicateConcurrently_ :: (MonadUnliftIO m) 
+                             => Int -- ^ Number of times to perform the action.
+                             -> m a -> m ()
+pooledReplicateConcurrently_ cnt task = 
+  pooledMapConcurrently_ (\_ -> task) [1..cnt]
 
 -- | Unlifted 'A.Concurrently'.
 --
