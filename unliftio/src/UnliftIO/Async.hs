@@ -41,6 +41,8 @@ module UnliftIO.Async
     -- ** Pooled concurrency
     pooledMapConcurrentlyN,
     pooledMapConcurrently,
+    pooledMapConcurrentlyN_,
+    pooledMapConcurrently_,
 
     -- * Convenient utilities
     race, race_,
@@ -433,6 +435,47 @@ pooledMapConcurrentlyIO' numProcs f xs = do
   -- Read all the IORefs
   for jobs (\(_, outputRef) -> readIORef outputRef)
 
+pooledMapConcurrentlyIO_' ::
+  Traversable t => Int -> (a -> IO b) -> t a -> IO ()
+pooledMapConcurrentlyIO_' numProcs f jobs = do
+  jobsVar :: MVar [a] <- newMVar (toList jobs)
+  forConcurrently_ [1..numProcs] $ \_ -> do
+    let loop  = do
+          mbJob :: Maybe a <- modifyMVar jobsVar $ \x -> case x of
+            [] -> return ([], Nothing)
+            var : vars -> return (vars, Just var)
+          case mbJob of
+            Nothing -> return ()
+            Just x -> do
+              y <- f x
+              loop
+    loop
+  return ()
+
+pooledMapConcurrentlyIO_ :: Traversable t => Int -> (a -> IO b) -> t a -> IO ()
+pooledMapConcurrentlyIO_ numProcs f xs = 
+    if (numProcs < 1)
+    then error "pooledMapconcurrentlyIO_: number of threads < 1"
+    else pooledMapConcurrentlyIO_' numProcs f xs
+
+-- | Like 'pooledMapConcurrentlyN' but with the return value
+-- discarded.
+--
+-- @since 0.2.9
+pooledMapConcurrentlyN_ :: (MonadUnliftIO m, Traversable f) 
+                        => Int -- ^ Max. number of threads. Should not be less than 1.
+                        -> (a -> m b) -> f a -> m ()
+pooledMapConcurrentlyN_ numProcs f t = 
+  withRunInIO $ \run -> pooledMapConcurrentlyIO_ numProcs (run . f) t
+
+-- | Like 'pooledMapConcurrently' but with the return value discarded.
+--
+-- @since 0.2.9
+pooledMapConcurrently_ :: (MonadUnliftIO m, Traversable f) => (a -> m b) -> f a -> m ()
+pooledMapConcurrently_ f t = 
+  withRunInIO $ \run -> do
+    numProcs <- getNumCapabilities
+    pooledMapConcurrentlyIO_ numProcs (run . f) t
 
 -- | Unlifted 'A.Concurrently'.
 --
