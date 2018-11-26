@@ -525,7 +525,9 @@ pooledReplicateConcurrentlyN :: (MonadUnliftIO m)
                              -> Int -- ^ Number of times to perform the action.
                              -> m a -> m [a]
 pooledReplicateConcurrentlyN numProcs cnt task = 
-  pooledMapConcurrentlyN numProcs (\_ -> task) [1..cnt]
+    if cnt < 1
+    then return []
+    else pooledMapConcurrentlyN numProcs (\_ -> task) [1..cnt]
 
 -- | Similar to 'pooledReplicateConcurrentlyN' but with number of
 -- threads set from 'getNumCapabilities'. Usually this is useful for
@@ -536,7 +538,9 @@ pooledReplicateConcurrently :: (MonadUnliftIO m)
                             => Int -- ^ Number of times to perform the action.
                             -> m a -> m [a]
 pooledReplicateConcurrently cnt task = 
-  pooledMapConcurrently (\_ -> task) [1..cnt]
+    if cnt < 1
+    then return []
+    else pooledMapConcurrently (\_ -> task) [1..cnt]
 
 -- | Pooled version of 'replicateConcurrently_'. Performs the action in
 -- the pooled threads.
@@ -547,7 +551,9 @@ pooledReplicateConcurrentlyN_ :: (MonadUnliftIO m)
                               -> Int -- ^ Number of times to perform the action.
                               -> m a -> m ()
 pooledReplicateConcurrentlyN_ numProcs cnt task = 
-  pooledMapConcurrentlyN_ numProcs (\_ -> task) [1..cnt]
+  if cnt < 1
+  then return ()
+  else pooledMapConcurrentlyN_ numProcs (\_ -> task) [1..cnt]
 
 -- | Similar to 'pooledReplicateConcurrently_' but with number of
 -- threads set from 'getNumCapabilities'. Usually this is useful for
@@ -558,7 +564,9 @@ pooledReplicateConcurrently_ :: (MonadUnliftIO m)
                              => Int -- ^ Number of times to perform the action.
                              -> m a -> m ()
 pooledReplicateConcurrently_ cnt task = 
-  pooledMapConcurrently_ (\_ -> task) [1..cnt]
+  if cnt < 1
+  then return ()
+  else pooledMapConcurrently_ (\_ -> task) [1..cnt]
 
 -- | Unlifted 'A.Concurrently'.
 --
