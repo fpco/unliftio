@@ -45,6 +45,8 @@ module UnliftIO.Async
     pooledMapConcurrently_,
     pooledForConcurrentlyN,
     pooledForConcurrently,
+    pooledForConcurrentlyN_,
+    pooledForConcurrently_,
     pooledReplicateConcurrentlyN,
     pooledReplicateConcurrently,
     pooledReplicateConcurrentlyN_,
@@ -498,6 +500,21 @@ pooledMapConcurrently_ f t =
   withRunInIO $ \run -> do
     numProcs <- getNumCapabilities
     pooledMapConcurrentlyIO_ numProcs (run . f) t
+
+-- | Like 'pooledMapConcurrently_' but with flipped arguments.
+--
+-- @since 0.2.9
+pooledForConcurrently_ :: (MonadUnliftIO m, Traversable f) => f a -> (a -> m b) -> m ()
+pooledForConcurrently_ t f = flip pooledMapConcurrently_ t f
+
+-- | Like 'pooledMapConcurrentlyN_' but with flipped arguments.
+--
+-- @since 0.2.9
+pooledForConcurrentlyN_ :: (MonadUnliftIO m, Traversable t) 
+                        => Int -- ^ Max. number of threads. Should not be less than 1.
+                        -> t a -> (a -> m b) -> m ()
+pooledForConcurrentlyN_ numProcs xs f = flip (pooledMapConcurrentlyN_ numProcs) xs f
+                      
 
 -- | Pooled version of 'replicateConcurrently'. Performs the action in
 -- the pooled threads.
