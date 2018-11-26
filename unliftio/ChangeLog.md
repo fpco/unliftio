@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.9
+
+* Add pooling related functions for unliftio
+
 ## 0.2.8.1
 
 * Support for `stm-2.5.0.0`
