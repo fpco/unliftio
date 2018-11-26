@@ -85,7 +85,7 @@ import qualified Control.Concurrent.STM as STM
 import Control.Monad.IO.Unlift
 import System.Mem.Weak (Weak)
 
-#if MIN_VERSION_base(4, 8, 0)
+#if MIN_VERSION_base(4, 8, 0) && MIN_VERSION_stm(2, 5, 0)
 import GHC.Natural (Natural)
 #endif
 
@@ -170,7 +170,7 @@ newTQueueIO = liftIO STM.newTQueueIO
 -- | Lifted version of 'STM.newTBQueueIO'
 --
 -- @since 0.2.1.0
-#if MIN_VERSION_base(4, 8, 0)
+#if MIN_VERSION_base(4, 8, 0) && MIN_VERSION_stm(2, 5, 0)
 newTBQueueIO :: MonadIO m => Natural -> m (TBQueue a)
 #else
 newTBQueueIO :: MonadIO m => Int -> m (TBQueue a)
