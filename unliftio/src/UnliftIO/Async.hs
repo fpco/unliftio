@@ -63,10 +63,9 @@ import Control.Concurrent.MVar
 import qualified UnliftIO.Exception as UE
 import qualified Control.Concurrent.Async as A
 import Control.Concurrent (threadDelay)
-import Control.Monad (forever, liftM, (>=>), void, join, unless)
+import Control.Monad (forever, liftM, (>=>), void, unless)
 import Control.Monad.IO.Unlift
 import Data.Foldable (traverse_, for_)
-import Data.Traversable (for)
 
 -- For the implementation of Conc below, we do not want any of the
 -- smart async exception handling logic from UnliftIO.Exception, since
@@ -551,7 +550,7 @@ type DList a = [a] -> [a]
 flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (Flat a)
 flatten c0 = withRunInIO $ \run -> do
 
-  let both :: forall a. Conc m a -> IO (Flat a)
+  let both :: forall k. Conc m k -> IO (Flat k)
       both Empty = E.throwIO EmptyWithNoAlternative
       both (Action m) = pure $ FlatApp $ FlatAction $ run m
       both (LiftA2 f a b) = do
@@ -568,7 +567,7 @@ flatten c0 = withRunInIO $ \run -> do
       both (Pure a) = pure $ FlatApp $ FlatPure a
 
       -- Returns a difference list for cheaper concatenation
-      alt :: forall a. Conc m a -> IO (DList (FlatApp a))
+      alt :: forall k. Conc m k -> IO (DList (FlatApp k))
       alt Empty = pure id
       alt (Alt a b) = do
         a' <- alt a
@@ -617,15 +616,15 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
          -> IO (STM a, DList C.ThreadId)
       go _excVar (FlatApp (FlatPure x)) = pure (pure x, id)
       go excVar (FlatApp (FlatAction io)) = do
-        var <- newEmptyTMVarIO
-        tid <- C.forkIOWithUnmask $ \restore -> do
-          res <- E.try $ restore io
+        resVar <- newEmptyTMVarIO
+        tid <- C.forkIOWithUnmask $ \restore1 -> do
+          res <- E.try $ restore1 io
           atomically $ do
             modifyTVar' countVar (+ 1)
             case res of
               Left e -> void $ tryPutTMVar excVar e
-              Right x -> putTMVar var x
-        pure (readTMVar var, (tid:))
+              Right x -> putTMVar resVar x
+        pure (readTMVar resVar, (tid:))
       go excVar (FlatApp (FlatLiftA2 f a b)) = do
         (a', tidsa) <- go excVar a
         (b', tidsb) <- go excVar b
@@ -639,13 +638,13 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
         excVar <- newEmptyTMVarIO
         resVar <- newEmptyTMVarIO
         pairs <- traverse (go excVar . FlatApp) (x:y:z)
-        let (blockers, tids) = unzip pairs
+        let (blockers, workerTids) = unzip pairs
 
         -- Fork a helper thread to wait for the first child to
         -- complete, or for one of them to die with an exception so we
         -- can propagate it to excVar0.
-        tid <- C.forkIOWithUnmask $ \unmask -> do
-          eres <- E.try $ atomically $ foldr
+        helperTid <- C.forkIOWithUnmask $ \unmask1 -> do
+          eres <- E.try $ unmask1 $ atomically $ foldr
             (\blocker rest -> (Right <$> blocker) <|> rest)
             (Left <$> readTMVar excVar)
             blockers
@@ -657,13 +656,13 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
               -- Child thread died, propagate it
               Right (Left e) -> void $ tryPutTMVar excVar0 e
               -- Successful result from one of the children
-              Right (Right x) -> putTMVar resVar x
+              Right (Right res) -> putTMVar resVar res
 
           -- And kill all of the threads
-          for_ tids $ \tids' ->
-            for_ (tids' []) $ \tid -> E.throwTo tid A.AsyncCancelled
+          for_ workerTids $ \tids' ->
+            for_ (tids' []) $ \workerTid -> E.throwTo workerTid A.AsyncCancelled
 
-        pure (readTMVar resVar, \rest -> tid : foldr ($) rest tids)
+        pure (readTMVar resVar, \rest -> helperTid : foldr ($) rest workerTids)
 
   excVar <- newEmptyTMVarIO
   (getRes, mkTids) <- go excVar f0
@@ -674,9 +673,9 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   -- Automatically retry if we get killed by a
   -- BlockedIndefinitelyOnSTM. For more information, see:
   --
-  -- * https://github.com/simonmar/async/issues/14
+  -- * https:\/\/github.com\/simonmar\/async\/issues\/14
   --
-  -- * https://github.com/simonmar/async/pull/15
+  -- * https:\/\/github.com\/simonmar\/async\/pull\/15
   let autoRetry action =
         action `E.catch`
         \E.BlockedIndefinitelyOnSTM -> autoRetry action
