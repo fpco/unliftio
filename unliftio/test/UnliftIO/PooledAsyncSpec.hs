@@ -7,11 +7,16 @@ import Test.QuickCheck
 import Data.Functor ((<$>))
 import UnliftIO
 
+data MyPooledException = PoolHellException
+                         deriving Show
+
+instance Exception MyPooledException
+
 spec :: Spec
 spec = do
   let exAction :: Int -> IO Int
       exAction x = do
-        if (x == 2) then error "hell" else return ()
+        if (x == 2) then throwIO PoolHellException else return ()
         return x
 
       action :: Int -> IO ThreadId
@@ -30,9 +35,12 @@ spec = do
            then writeTVar tvar cval
            else return ()
 
+      poolException :: Selector MyPooledException
+      poolException = const True
+
   describe "pooled mapConcurrencyN" $ do
     it "Throws exception properly" $ do
-       (pooledMapConcurrentlyN 5 exAction [1..5]) `shouldThrow` anyErrorCall
+       (pooledMapConcurrentlyN 5 exAction [1..5]) `shouldThrow` poolException
 
     it "total thread should be >= 1" $ do
        (pooledMapConcurrentlyN 0 action [1..5]) `shouldThrow` anyErrorCall
@@ -61,7 +69,7 @@ spec = do
 
   describe "pooled mapConcurrencyN_" $ do
     it "Throws exception properly" $ do
-       (pooledMapConcurrentlyN_ 5 exAction [1..5]) `shouldThrow` anyErrorCall
+       (pooledMapConcurrentlyN_ 5 exAction [1..5]) `shouldThrow` poolException
 
     it "total thread should be >= 1" $ do
        (pooledMapConcurrentlyN_ 0 action [1..5]) `shouldThrow` anyErrorCall
@@ -123,7 +131,7 @@ spec = do
 
   describe "replicate concurrencyN" $ do
     it "Throws exception properly" $ do
-       (pooledReplicateConcurrentlyN 5 1 (exAction 2)) `shouldThrow` anyErrorCall
+       (pooledReplicateConcurrentlyN 5 1 (exAction 2)) `shouldThrow` poolException
 
     it "total thread should be >= 1" $ do
        (pooledReplicateConcurrentlyN 0 1 (action 1)) `shouldThrow` anyErrorCall
@@ -153,7 +161,7 @@ spec = do
 
   describe "pooled replicateConcurrencyN_" $ do
     it "Throws exception properly" $ do
-       (pooledReplicateConcurrentlyN_ 5 1 (exAction 2)) `shouldThrow` anyErrorCall
+       (pooledReplicateConcurrentlyN_ 5 1 (exAction 2)) `shouldThrow` poolException
 
     it "total thread should be >= 1" $ do
        (pooledReplicateConcurrentlyN_ 0 2 (action 1)) `shouldThrow` anyErrorCall
