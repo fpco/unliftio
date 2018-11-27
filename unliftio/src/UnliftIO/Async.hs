@@ -433,6 +433,21 @@ pooledMapConcurrentlyIO numProcs f xs =
     then error "pooledMapconcurrentlyIO: number of threads < 1"
     else pooledMapConcurrentlyIO' numProcs f xs
 
+pooledConcurrently
+  :: Int -> MVar [a] -> (a -> IO b) -> IO ()
+pooledConcurrently numProcs jobsVar f = do
+  forConcurrently_ [1..numProcs] $ \_ -> do
+    let loop  = do
+          mbJob :: Maybe a <- modifyMVar jobsVar $ \x -> case x of
+            [] -> return ([], Nothing)
+            var : vars -> return (vars, Just var)
+          case mbJob of
+            Nothing -> return ()
+            Just x -> do
+              _ <- f x
+              loop
+    loop
+
 pooledMapConcurrentlyIO' ::
   Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
 pooledMapConcurrentlyIO' numProcs f xs = do
@@ -444,37 +459,14 @@ pooledMapConcurrentlyIO' numProcs f xs = do
   -- ...run `numProcs` threads in parallel, each
   -- of them consuming the queue and filling in
   -- the respective IORefs.
-  forConcurrently_ [1..numProcs] $ \_ -> do
-    let loop  = do
-          mbJob :: Maybe (a, IORef b) <- modifyMVar jobsVar $ \x -> case x of
-            [] -> return ([], Nothing)
-            var : vars -> return (vars, Just var)
-          case mbJob of
-            Nothing -> return ()
-            Just (x, outRef) -> do
-              y <- f x
-              writeIORef outRef y
-              loop
-    loop
-  -- Read all the IORefs
+  pooledConcurrently numProcs jobsVar $ \ (x, outRef) -> f x >>= writeIORef outRef      -- Read all the IORefs
   for jobs (\(_, outputRef) -> readIORef outputRef)
 
 pooledMapConcurrentlyIO_' ::
   Traversable t => Int -> (a -> IO b) -> t a -> IO ()
 pooledMapConcurrentlyIO_' numProcs f jobs = do
   jobsVar :: MVar [a] <- newMVar (toList jobs)
-  forConcurrently_ [1..numProcs] $ \_ -> do
-    let loop  = do
-          mbJob :: Maybe a <- modifyMVar jobsVar $ \x -> case x of
-            [] -> return ([], Nothing)
-            var : vars -> return (vars, Just var)
-          case mbJob of
-            Nothing -> return ()
-            Just x -> do
-              y <- f x
-              loop
-    loop
-  return ()
+  pooledConcurrently numProcs jobsVar f
 
 pooledMapConcurrentlyIO_ :: Traversable t => Int -> (a -> IO b) -> t a -> IO ()
 pooledMapConcurrentlyIO_ numProcs f xs =
