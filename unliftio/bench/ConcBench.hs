@@ -1,5 +1,6 @@
 import Gauge
 import Gauge.Main
+import Control.Concurrent (threadDelay)
 import UnliftIO
 import qualified Control.Concurrent.Async as A
 import Data.List (foldl')
@@ -70,4 +71,66 @@ main = defaultMain
         runConc $
         foldr (<|>) empty (replicate size (pure ()))
     ]
+  , bgroup "race (with result)" $
+      sizes $ \size ->
+        [ bench "Concurrently" $
+          whnfIO $
+          runConcurrently $
+          let go i
+                | i == size = Concurrently (pure i)
+                | otherwise = liftA2 (+) (Concurrently (pure i)) (go (i + 1))
+           in (Concurrently $ threadDelay maxBound >> return 0) <|> (go 1) <|>
+              (Concurrently $ threadDelay maxBound >> return 0)
+        , bench "Conc" $
+          whnfIO $
+          runConc $
+          let go i
+                | i == size = conc (pure i)
+                | otherwise = liftA2 (+) (conc (pure i)) (go (i + 1))
+           in (conc $ threadDelay maxBound >> return 0) <|> (go 1) <|>
+              (conc $ threadDelay maxBound >> return 0)
+        , bench "Conc, cheating" $
+          whnfIO $
+          runConc $
+          let go i
+                | i == size = conc (pure i)
+                | otherwise = liftA2 (+) (pure i) (go (i + 1))
+           in (conc $ threadDelay maxBound >> return 0) <|> (go 1) <|>
+              (conc $ threadDelay maxBound >> return 0)
+        ]
+    , let size = 10
+       in bgroup
+            "race (nested)"
+            [ bench "Concurrently" $
+              whnfIO $
+              runConcurrently $
+              let go i
+                    | i == size = Concurrently (pure i)
+                    | i `mod` 2 == 0 =
+                      (liftA2 (+) (Concurrently (pure i)) (go (i + 1))) <|>
+                      (liftA2 (+) (Concurrently (pure i)) (go (i + 2)))
+                    | otherwise =
+                      liftA2 (+) (Concurrently (pure i)) (go (i + 1))
+               in go 1
+            , bench "Conc" $
+              whnfIO $
+              runConc $
+              let go i
+                    | i == size = conc (pure i)
+                    | i `mod` 2 == 0 =
+                      (liftA2 (+) (conc (pure i)) (go (i + 1))) <|>
+                      (liftA2 (+) (conc (pure i)) (go (i + 2)))
+                    | otherwise = liftA2 (+) (conc (pure i)) (go (i + 1))
+               in go 1
+            , bench "Conc, cheating" $
+              whnfIO $
+              runConc $
+              let go i
+                    | i == size = conc (pure i)
+                    | i `mod` 2 == 0 =
+                      (liftA2 (+) (pure i) (go (i + 1))) <|>
+                      (liftA2 (+) (pure i) (go (i + 2)))
+                    | otherwise = liftA2 (+) (pure i) (go (i + 1))
+               in go 1
+            ]
   ]
