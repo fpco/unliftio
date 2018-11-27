@@ -53,6 +53,10 @@ spec = do
        xs <- (pooledMapConcurrentlyN 3 action [1..5])
        (length $ nub xs) `shouldSatisfy` (<= (3 :: Int))
 
+    it "should spawn only one thread" $ do
+       xs <- (pooledMapConcurrentlyN 1 action [1..5])
+       (length $ nub xs) `shouldBe` 1
+
     it "never uses more than the given number of pools and doesn't miss any return values" $
         forAllShrink ((+ 1) . abs <$> arbitrary) (filter (>= 1) . shrink) $ \threads ->
             property $ \list -> do
@@ -150,6 +154,10 @@ spec = do
     it "should not spawn more than three threads for five concurrent tasks" $ do
        xs <- (pooledReplicateConcurrentlyN 3 5 (action 1))
        (length $ nub xs) `shouldSatisfy` (<= (3 :: Int))
+
+    it "should spawn only one thread" $ do
+       xs <- (pooledReplicateConcurrentlyN 1 5 (action 1))
+       (length $ nub xs) `shouldBe` 1
 
     it "should give empty list" $ do
        xs <- (pooledReplicateConcurrentlyN 3 0 (action 1))
