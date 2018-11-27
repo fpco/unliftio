@@ -16,7 +16,7 @@ spec = do
 
       action :: Int -> IO ThreadId
       action x = do
-         threadDelay (2 * 10^6)
+         threadDelay (2 * 10^5)
          myThreadId
 
       myVar :: IO (TVar Int)
@@ -97,7 +97,7 @@ spec = do
              atomically $ do
                tvar <- readTVar threadVar
                writeTVar threadVar (tid:tvar)
-             threadDelay $ 2 * 10^6
+             threadDelay $ 2 * 10^5
 
        tid <- myThreads
        xs <- pooledMapConcurrentlyN_ 5 (\_ -> collectThreads tid) [1..5]
@@ -114,7 +114,7 @@ spec = do
              atomically $ do
                tvar <- readTVar threadVar
                writeTVar threadVar (tid:tvar)
-             threadDelay $ 2 * 10^6
+             threadDelay $ 2 * 10^5
 
        tid <- myThreads
        xs <- pooledMapConcurrentlyN_ 8 (\_ -> collectThreads tid) [1..5]
