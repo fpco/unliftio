@@ -72,6 +72,54 @@ spec = do
        newVar <- atomically $ readTVar var
        atomically $ writeTVar var 0
        newVar `shouldBe` 5
+              
+    it "find proper maximum value with 2 threads" $ do
+       var <- myVar                                  
+       xs <- (pooledMapConcurrentlyN_ 2 (\x -> maxTVar x var) [1..5])
+       newVar <- atomically $ readTVar var
+       atomically $ writeTVar var 0
+       newVar `shouldBe` 5       
+
+    it "find proper maximum value with 1 threads" $ do
+       var <- myVar                                  
+       xs <- (pooledMapConcurrentlyN_ 1 (\x -> maxTVar x var) [1..5])
+       newVar <- atomically $ readTVar var
+       atomically $ writeTVar var 0
+       newVar `shouldBe` 5       
+
+    it "make sure activity is happening in different threads" $ do
+       let myThreads :: IO (TVar [ThreadId])                                  
+           myThreads = atomically $ newTVar []
+
+           collectThreads :: TVar [ThreadId] -> IO ()
+           collectThreads threadVar = do
+             tid <- myThreadId
+             atomically $ do
+               tvar <- readTVar threadVar
+               writeTVar threadVar (tid:tvar)
+             threadDelay $ 2 * 10^6 
+
+       tid <- myThreads
+       xs <- pooledMapConcurrentlyN_ 5 (\_ -> collectThreads tid) [1..5]
+       tids <- atomically $ readTVar tid
+       (length $ nub tids) `shouldSatisfy` (<= 5)       
+
+    it "Not more than 5 threads will be spawned even if pooling is set to 8 " $ do
+       let myThreads :: IO (TVar [ThreadId])                                  
+           myThreads = atomically $ newTVar []
+
+           collectThreads :: TVar [ThreadId] -> IO ()
+           collectThreads threadVar = do
+             tid <- myThreadId
+             atomically $ do
+               tvar <- readTVar threadVar
+               writeTVar threadVar (tid:tvar)
+             threadDelay $ 2 * 10^6 
+
+       tid <- myThreads
+       xs <- pooledMapConcurrentlyN_ 8 (\_ -> collectThreads tid) [1..5]
+       tids <- atomically $ readTVar tid
+       (length $ nub tids) `shouldSatisfy` (<= 5)
 
   describe "replicate concurrencyN" $ do
     it "Throws exception properly" $ do
