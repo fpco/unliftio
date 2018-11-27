@@ -363,8 +363,8 @@ replicateConcurrently_ i m = withRunInIO $ \run -> A.replicateConcurrently_ i (r
 -- @
 --
 --
--- Let's modify the above program such that the threads is less than
--- the number of items in the list:
+-- Let's modify the above program such that there are less threads
+-- than the number of items in the list:
 --
 -- @
 -- import Say
