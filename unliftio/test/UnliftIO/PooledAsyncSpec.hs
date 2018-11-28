@@ -1,3 +1,5 @@
+{-#LANGUAGE DeriveDataTypeable#-}
+
 module UnliftIO.PooledAsyncSpec (spec) where
 
 import Test.Hspec
@@ -8,7 +10,7 @@ import Data.Functor ((<$>))
 import UnliftIO
 
 data MyPooledException = PoolHellException
-                         deriving Show
+                         deriving (Show, Typeable)
 
 instance Exception MyPooledException
 
