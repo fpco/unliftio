@@ -598,10 +598,10 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   -- Forks off as many threads as necessary to run the given Flat a,
   -- and returns:
   --
-  -- * An STM action that will block until completion and return the
+  -- + An STM action that will block until completion and return the
   --   result.
   --
-  -- * The IDs of all forked threads. These need to be tracked so they
+  -- + The IDs of all forked threads. These need to be tracked so they
   --   can be killed (either when an exception is thrown, or when one
   --   of the alternatives completes first).
   --
@@ -673,9 +673,9 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   -- Automatically retry if we get killed by a
   -- BlockedIndefinitelyOnSTM. For more information, see:
   --
-  -- * https:\/\/github.com\/simonmar\/async\/issues\/14
+  -- + https:\/\/github.com\/simonmar\/async\/issues\/14
+  -- + https:\/\/github.com\/simonmar\/async\/pull\/15
   --
-  -- * https:\/\/github.com\/simonmar\/async\/pull\/15
   let autoRetry action =
         action `E.catch`
         \E.BlockedIndefinitelyOnSTM -> autoRetry action
