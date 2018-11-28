@@ -47,9 +47,12 @@ module UnliftIO.Async
     mapConcurrently, forConcurrently,
     mapConcurrently_, forConcurrently_,
     replicateConcurrently, replicateConcurrently_,
+
+#if MIN_VERSION_base(4,8,0)
     Concurrently (..),
     Conc, conc, runConc,
-    ConcException (..),
+    ConcException (..)
+#endif
   ) where
 
 import Control.Applicative
@@ -76,9 +79,13 @@ import qualified Control.Exception as E
 #if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
 #else
-import Data.Monoid
+import Data.Monoid hiding (Alt)
 import Data.Foldable (Foldable)
 import Data.Traversable (Traversable)
+#endif
+
+#if MIN_VERSION_base(4,7,0)
+import Data.Traversable (traverse)
 #endif
 
 -- | Unlifted 'A.async'.
@@ -291,60 +298,6 @@ concurrently a b = withRunInIO $ \run -> A.concurrently (run a) (run b)
 concurrently_ :: MonadUnliftIO m => m a -> m b -> m ()
 concurrently_ a b = withRunInIO $ \run -> A.concurrently_ (run a) (run b)
 
--- | Unlifted 'A.mapConcurrently'.
---
--- @since 0.1.0.0
-mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
-mapConcurrently f t = withRunInIO $ \run -> runFlat $ traverse
-  (FlatApp . FlatAction . run . f)
-  t
-{-# INLINE mapConcurrently #-}
-
--- | Unlifted 'A.forConcurrently'.
---
--- @since 0.1.0.0
-forConcurrently :: MonadUnliftIO m => Traversable t => t a -> (a -> m b) -> m (t b)
-forConcurrently = flip mapConcurrently
-{-# INLINE forConcurrently #-}
-
--- | Unlifted 'A.mapConcurrently_'.
---
--- @since 0.1.0.0
-mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
-mapConcurrently_ f t = withRunInIO $ \run -> runFlat $ traverse_
-  (FlatApp . FlatAction . run . f)
-  t
-{-# INLINE mapConcurrently_ #-}
-
--- | Unlifted 'A.forConcurrently_'.
---
--- @since 0.1.0.0
-forConcurrently_ :: MonadUnliftIO m => Foldable f => f a -> (a -> m b) -> m ()
-forConcurrently_ = flip mapConcurrently_
-{-# INLINE forConcurrently_ #-}
-
--- | Unlifted 'A.replicateConcurrently'.
---
--- @since 0.1.0.0
-replicateConcurrently :: MonadUnliftIO m => Int -> m a -> m [a]
-replicateConcurrently cnt m =
-  case compare cnt 1 of
-    LT -> pure []
-    EQ -> (:[]) <$> m
-    GT -> mapConcurrently id (replicate cnt m)
-{-# INLINE replicateConcurrently #-}
-
--- | Unlifted 'A.replicateConcurrently_'.
---
--- @since 0.1.0.0
-replicateConcurrently_ :: MonadUnliftIO m => Int -> m a -> m ()
-replicateConcurrently_ cnt m =
-  case compare cnt 1 of
-    LT -> pure ()
-    EQ -> void m
-    GT -> mapConcurrently_ id (replicate cnt m)
-{-# INLINE replicateConcurrently_ #-}
-
 -- | Unlifted 'A.Concurrently'.
 --
 -- @since 0.1.0.0
@@ -368,7 +321,9 @@ instance MonadUnliftIO m => Alternative (Concurrently m) where
   Concurrently as <|> Concurrently bs =
     Concurrently $ liftM (either id id) (race as bs)
 
+--------------------------------------------------------------------------------
 #if MIN_VERSION_base(4,9,0)
+--------------------------------------------------------------------------------
 -- | Only defined by @async@ for @base >= 4.9@.
 --
 -- @since 0.1.0.0
@@ -379,12 +334,77 @@ instance (MonadUnliftIO m, Semigroup a) => Semigroup (Concurrently m a) where
 instance (Semigroup a, Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
   mempty = pure mempty
   mappend = (<>)
+--------------------------------------------------------------------------------
 #else
+--------------------------------------------------------------------------------
 -- | @since 0.1.0.0
 instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
   mempty = pure mempty
   mappend = liftA2 mappend
+--------------------------------------------------------------------------------
 #endif
+--------------------------------------------------------------------------------
+
+-- | Unlifted 'A.forConcurrently'.
+--
+-- @since 0.1.0.0
+forConcurrently :: MonadUnliftIO m => Traversable t => t a -> (a -> m b) -> m (t b)
+forConcurrently = flip mapConcurrently
+{-# INLINE forConcurrently #-}
+
+-- | Unlifted 'A.forConcurrently_'.
+--
+-- @since 0.1.0.0
+forConcurrently_ :: MonadUnliftIO m => Foldable f => f a -> (a -> m b) -> m ()
+forConcurrently_ = flip mapConcurrently_
+{-# INLINE forConcurrently_ #-}
+
+-- Conc uses GHC features that are not supported in versions <= to ghc-7.10
+-- so we are going to export/use it when we have a higher version only.
+--------------------------------------------------------------------------------
+#if MIN_VERSION_base(4,8,0)
+--------------------------------------------------------------------------------
+
+-- | Unlifted 'A.mapConcurrently'.
+--
+-- @since 0.1.0.0
+mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
+mapConcurrently f t = withRunInIO $ \run -> runFlat $ traverse
+  (FlatApp . FlatAction . run . f)
+  t
+{-# INLINE mapConcurrently #-}
+
+-- | Unlifted 'A.mapConcurrently_'.
+--
+-- @since 0.1.0.0
+mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
+mapConcurrently_ f t = withRunInIO $ \run -> runFlat $ traverse_
+  (FlatApp . FlatAction . run . f)
+  t
+{-# INLINE mapConcurrently_ #-}
+
+-- | Unlifted 'A.replicateConcurrently'.
+--
+-- @since 0.1.0.0
+replicateConcurrently :: MonadUnliftIO m => Int -> m a -> m [a]
+replicateConcurrently cnt m =
+  case compare cnt 1 of
+    LT -> pure []
+    EQ -> (:[]) <$> m
+    GT -> mapConcurrently id (replicate cnt m)
+{-# INLINE replicateConcurrently #-}
+
+-- | Unlifted 'A.replicateConcurrently_'.
+--
+-- @since 0.1.0.0
+replicateConcurrently_ :: (MonadUnliftIO m) => Int -> m a -> m ()
+replicateConcurrently_ cnt m =
+  case compare cnt 1 of
+    LT -> pure ()
+    EQ -> void m
+    GT -> mapConcurrently_ id (replicate cnt m)
+{-# INLINE replicateConcurrently_ #-}
+
 
 -- More efficient Conc implementation
 
@@ -465,8 +485,11 @@ instance MonadUnliftIO m => Applicative (Conc m) where
   {-# INLINE (<*>) #-}
   -- See comment above on Then
   -- (*>) = Then
+#if MIN_VERSION_base(4,11,0)
   liftA2 = LiftA2
   {-# INLINE liftA2 #-}
+#endif
+
   a *> b = LiftA2 (\_ x -> x) a b
   {-# INLINE (*>) #-}
 
@@ -477,10 +500,12 @@ instance MonadUnliftIO m => Alternative (Conc m) where
   (<|>) = Alt
   {-# INLINE (<|>) #-}
 
+#if MIN_VERSION_base(4, 11, 0)
 -- | @since 0.2.9.0
 instance (MonadUnliftIO m, Semigroup a) => Semigroup (Conc m a) where
   (<>) = liftA2 (<>)
   {-# INLINE (<>) #-}
+#endif
 
 -- | @since 0.2.9.0
 instance (Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
@@ -519,7 +544,10 @@ data Flat a
 deriving instance Functor Flat
 instance Applicative Flat where
   pure = FlatApp . pure
+  (<*>) f a = FlatApp (FlatLiftA2 id f a)
+#if MIN_VERSION_base(4,11,0)
   liftA2 f a b = FlatApp (FlatLiftA2 f a b)
+#endif
 
 -- | Flattened Applicative. No Alternative stuff directly in here, but
 -- may be in the children.
@@ -531,7 +559,10 @@ data FlatApp a where
 deriving instance Functor FlatApp
 instance Applicative FlatApp where
   pure = FlatPure
+  (<*>) f a = FlatLiftA2 id (FlatApp f) (FlatApp a)
+#if MIN_VERSION_base(4,11,0)
   liftA2 f a b = FlatLiftA2 f (FlatApp a) (FlatApp b)
+#endif
 
 -- | Things that can go wrong in the structure of a 'Conc'. These are
 -- /programmer errors/.
@@ -660,7 +691,11 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
 
           -- And kill all of the threads
           for_ workerTids $ \tids' ->
-            for_ (tids' []) $ \workerTid -> E.throwTo workerTid A.AsyncCancelled
+            -- NOTE: Replacing A.AsyncCancelled with KillThread as the
+            -- 'A.AsyncCancelled' constructor is not exported in older versions
+            -- of the aysnc package
+            -- for_ (tids' []) $ \workerTid -> E.throwTo workerTid A.AsyncCancelled
+            for_ (tids' []) $ \workerTid -> C.killThread workerTid
 
         pure (readTMVar resVar, \rest -> helperTid : foldr ($) rest workerTids)
 
@@ -689,7 +724,11 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   count0 <- atomically $ readTVar countVar
   unless (allDone count0) $ do
     -- Kill all of the threads
-    for_ tids $ \tid -> E.throwTo tid A.AsyncCancelled
+    -- NOTE: Replacing A.AsyncCancelled with KillThread as the
+    -- 'A.AsyncCancelled' constructor is not exported in older versions
+    -- of the aysnc package
+    -- for_ tids $ \tid -> E.throwTo tid A.AsyncCancelled
+    for_ tids $ \tid -> C.killThread tid
 
     -- Wait for all of the threads to die. We're going to restore the
     -- original masking state here, just in case there's a bug in the
@@ -709,3 +748,48 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
     -- Everything worked!
     Right (Right x) -> pure x
 {-# INLINEABLE runFlat #-}
+
+--------------------------------------------------------------------------------
+#else
+--------------------------------------------------------------------------------
+
+-- | Unlifted 'A.replicateConcurrently'.
+--
+-- @since 0.1.0.0
+replicateConcurrently :: (Applicative m, MonadUnliftIO m) => Int -> m a -> m [a]
+replicateConcurrently cnt m =
+  case compare cnt 1 of
+    LT -> pure []
+    EQ -> (:[]) <$> m
+    GT -> mapConcurrently id (replicate cnt m)
+{-# INLINE replicateConcurrently #-}
+
+-- | Unlifted 'A.replicateConcurrently_'.
+--
+-- @since 0.1.0.0
+replicateConcurrently_ :: (Applicative m, Functor m, MonadUnliftIO m) => Int -> m a -> m ()
+replicateConcurrently_ cnt m =
+  case compare cnt 1 of
+    LT -> pure ()
+    EQ -> void m
+    GT -> mapConcurrently_ id (replicate cnt m)
+{-# INLINE replicateConcurrently_ #-}
+
+
+-- | Unlifted 'A.mapConcurrently'.
+--
+-- @since 0.1.0.0
+mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
+mapConcurrently f t = withRunInIO $ \run -> A.mapConcurrently (run . f) t
+{-# INLINE mapConcurrently #-}
+
+-- | Unlifted 'A.mapConcurrently_'.
+--
+-- @since 0.1.0.0
+mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
+mapConcurrently_ f t = withRunInIO $ \run -> A.mapConcurrently_ (run . f) t
+{-# INLINE mapConcurrently_ #-}
+
+--------------------------------------------------------------------------------
+#endif
+--------------------------------------------------------------------------------

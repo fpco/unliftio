@@ -1,3 +1,5 @@
+{-# LANGUAGE DeriveDataTypeable #-}
+{-# LANGUAGE CPP #-}
 module UnliftIO.AsyncSpec (spec) where
 
 import Test.Hspec
@@ -31,6 +33,7 @@ spec = do
         tids <- readIORef threadIdsRef
         tids `shouldBe` (nub tids)
 
+#if MIN_VERSION_base(4,8,0)
   describe "conc" $ do
     it "handles exceptions" $ do
       runConc (conc (pure ()) *> conc (throwIO MyExc))
@@ -128,3 +131,5 @@ spec = do
         <*> sillyAlts (conc (pure 2))
       res `shouldBe` 3
       putMVar var ()
+
+#endif
