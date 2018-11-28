@@ -85,7 +85,7 @@ import qualified Control.Concurrent.STM as STM
 import Control.Monad.IO.Unlift
 import System.Mem.Weak (Weak)
 
-#if MIN_VERSION_stm(2, 5, 0)
+#if MIN_VERSION_base(4, 8, 0)
 import GHC.Natural (Natural)
 #endif
 
