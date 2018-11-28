@@ -18,6 +18,7 @@ dependencies:
   - deepseq
   - directory
   - filepath
+  - nats
   - process >= 1.2.0.0
   - stm >= 2.4.3
   - time
