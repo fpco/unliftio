@@ -47,9 +47,9 @@ module UnliftIO.Async
     mapConcurrently, forConcurrently,
     mapConcurrently_, forConcurrently_,
     replicateConcurrently, replicateConcurrently_,
+    Concurrently (..),
 
 #if MIN_VERSION_base(4,8,0)
-    Concurrently (..),
     Conc, conc, runConc,
     ConcException (..)
 #endif
