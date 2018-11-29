@@ -18,7 +18,6 @@ dependencies:
   - deepseq
   - directory
   - filepath
-  - nats
   - process >= 1.2.0.0
   - stm >= 2.4.3
   - time
@@ -35,6 +34,9 @@ library:
   - src
 
   when:
+  - condition: impl(ghc <= 7.10)
+    dependencies:
+      - nats
   - condition: os(darwin)
     then:
       c-sources: cbits/time-osx.c
