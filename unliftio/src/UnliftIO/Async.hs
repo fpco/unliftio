@@ -674,8 +674,8 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
         -- Fork a helper thread to wait for the first child to
         -- complete, or for one of them to die with an exception so we
         -- can propagate it to excVar0.
-        helperTid <- C.forkIOWithUnmask $ \unmask1 -> do
-          eres <- E.try $ unmask1 $ atomically $ foldr
+        helperTid <- C.forkIOWithUnmask $ \restore1 -> do
+          eres <- E.try $ restore1 $ atomically $ foldr
             (\blocker rest -> (Right <$> blocker) <|> rest)
             (Left <$> readTMVar excVar)
             blockers
