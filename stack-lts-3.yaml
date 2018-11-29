@@ -4,4 +4,3 @@ packages:
 - unliftio-core
 extra-deps:
 - async-2.2.1@rev:0
-- gauge-0.2.4@sha256:b8b19a8c13ab79097726d0edf91297ccd3eede053d1de47e3ac67f1252cc33c2
