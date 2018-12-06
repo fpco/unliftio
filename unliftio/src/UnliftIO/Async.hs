@@ -1,3 +1,5 @@
+{-# LANGUAGE LambdaCase #-}
+{-# LANGUAGE DeriveGeneric #-}
 {-# LANGUAGE CPP #-}
 {-# LANGUAGE DeriveFunctor #-}
 {-# LANGUAGE DeriveDataTypeable #-}
@@ -75,6 +77,7 @@ import Data.Foldable (traverse_, for_)
 -- (eg) we're low-level enough to need to explicit be throwing async
 -- exceptions synchronously.
 import qualified Control.Exception as E
+import GHC.Generics (Generic)
 
 #if MIN_VERSION_base(4,9,0)
 import Data.Semigroup
@@ -315,8 +318,10 @@ instance MonadUnliftIO m => Applicative (Concurrently m) where
   Concurrently fs <*> Concurrently as =
     Concurrently $ liftM (\(f, a) -> f a) (concurrently fs as)
 
--- | @since 0.1.0.0
+-- | TODO: Add documentation here
+-- @since 0.1.0.0
 instance MonadUnliftIO m => Alternative (Concurrently m) where
+  -- | TODO: Add documentation here
   empty = Concurrently $ liftIO (forever (threadDelay maxBound))
   Concurrently as <|> Concurrently bs =
     Concurrently $ liftM (either id id) (race as bs)
@@ -345,14 +350,14 @@ instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
 #endif
 --------------------------------------------------------------------------------
 
--- | Unlifted 'A.forConcurrently'.
+-- | TODO: Add documentation that specifies we are using Conc instead of Concurrently
 --
 -- @since 0.1.0.0
 forConcurrently :: MonadUnliftIO m => Traversable t => t a -> (a -> m b) -> m (t b)
 forConcurrently = flip mapConcurrently
 {-# INLINE forConcurrently #-}
 
--- | Unlifted 'A.forConcurrently_'.
+-- | TODO: Add documentation that specifies we are using Conc instead of Concurrently
 --
 -- @since 0.1.0.0
 forConcurrently_ :: MonadUnliftIO m => Foldable f => f a -> (a -> m b) -> m ()
@@ -444,7 +449,8 @@ replicateConcurrently_ cnt m =
 -- @since 0.2.9.0
 data Conc m a where
   Action :: m a -> Conc m a
-  LiftA2 :: (a -> b -> c) -> Conc m a -> Conc m b -> Conc m c
+  Lift   :: Conc m (v -> a) -> Conc m v -> Conc m a
+  LiftA2 :: (x -> y -> a) -> Conc m x -> Conc m y -> Conc m a
 
   -- Just an optimization to avoid spawning extra threads
   Pure :: a -> Conc m a
@@ -460,6 +466,11 @@ data Conc m a where
   Empty :: Conc m a
 
 deriving instance Functor m => Functor (Conc m)
+-- fmap f (Action routine) = Action (fmap f routine)
+-- fmap f (LiftA2 g x y)   = LiftA2 (fmap f g) x y
+-- fmap f (Pure val)       = Pure (f val)
+-- fmap f (Alt a b)        = Alt (fmap f a) (fmap f b)
+-- fmap f Empty            = Empty
 
 -- | Construct a value of type 'Conc' from an action. Compose these
 -- values using the typeclass instances (most commonly 'Applicative'
@@ -481,7 +492,7 @@ runConc = flatten >=> (liftIO . runFlat)
 instance MonadUnliftIO m => Applicative (Conc m) where
   pure = Pure
   {-# INLINE pure #-}
-  f <*> a = LiftA2 id f a
+  (<*>) = Lift
   {-# INLINE (<*>) #-}
   -- See comment above on Then
   -- (*>) = Then
@@ -492,6 +503,22 @@ instance MonadUnliftIO m => Applicative (Conc m) where
 
   a *> b = LiftA2 (\_ x -> x) a b
   {-# INLINE (*>) #-}
+
+  --
+  -- downloadA :: IO String
+  -- downloadB :: IO String
+  --
+  -- (f <$> conc downloadA <*> conc downloadB <*> pure 123)
+  -- (((f <$> a) <*> b) <*> c))
+  --      (1)    (2)    (3)
+  -- (1)
+  --   Action (fmap f downloadA)
+  -- (2)
+  --   LiftA2 id (Action (fmap f downloadA)) (Action downloadB)
+  -- (3)
+  --   LiftA2 id (LiftA2 id (Action (fmap f downloadA)) (Action downloadB))
+  --             (Pure 123)
+
 
 -- | @since 0.2.9.0
 instance MonadUnliftIO m => Alternative (Conc m) where
@@ -536,12 +563,16 @@ instance (Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
 
 -- | Flattened structure, either Applicative or Alternative
 data Flat a
-  = FlatApp (FlatApp a)
+  = FlatApp !(FlatApp a)
   -- | Flattened Alternative. Has at least 2 entries, which must be
   -- FlatApp (no nesting of FlatAlts).
-  | FlatAlt (FlatApp a) (FlatApp a) [FlatApp a]
+  | FlatAlt !(FlatApp a) !(FlatApp a) ![FlatApp a]
 
 deriving instance Functor Flat
+-- fmap f (FlatApp a) =
+--  FlatApp (fmap f a)
+-- fmap f (FlatAlt (FlatApp a) (FlatApp b) xs) =
+--   FlatAlt (FlatApp (fmap f a)) (FlatApp (fmap f b)) (map (fmap f) xs)
 instance Applicative Flat where
   pure = FlatApp . pure
   (<*>) f a = FlatApp (FlatLiftA2 id f a)
@@ -551,15 +582,19 @@ instance Applicative Flat where
 
 -- | Flattened Applicative. No Alternative stuff directly in here, but
 -- may be in the children.
+--
+-- TODO: Point out that concurrency relies on IO eventually, so no incentive
+-- to make this polymorphic on @m@
 data FlatApp a where
+  FlatPure   :: a -> FlatApp a
   FlatAction :: IO a -> FlatApp a
-  FlatLiftA2 :: (a -> b -> c) -> Flat a -> Flat b -> FlatApp c
-  FlatPure :: a -> FlatApp a
+  FlatLift   :: Flat (v -> a) -> Flat v -> FlatApp a
+  FlatLiftA2 :: (x -> y -> a) -> Flat x -> Flat y -> FlatApp a
 
 deriving instance Functor FlatApp
 instance Applicative FlatApp where
   pure = FlatPure
-  (<*>) f a = FlatLiftA2 id (FlatApp f) (FlatApp a)
+  (<*>) mf ma = FlatLift (FlatApp mf) (FlatApp ma)
 #if MIN_VERSION_base(4,11,0)
   liftA2 f a b = FlatLiftA2 f (FlatApp a) (FlatApp b)
 #endif
@@ -570,28 +605,58 @@ instance Applicative FlatApp where
 -- @since 0.2.9.0
 data ConcException
   = EmptyWithNoAlternative
-  deriving (Show, Typeable, Eq)
+  deriving (Generic, Show, Typeable, Eq, Ord)
 instance E.Exception ConcException
 
 -- | Simple difference list, for nicer types below
 type DList a = [a] -> [a]
+
+dlistConcat :: DList a -> DList a -> DList a
+dlistConcat = (.)
+{-# INLINE dlistConcat #-}
+
+dlistCons :: a -> DList a -> DList a
+dlistCons a as = dlistSingleton a `dlistConcat` as
+{-# INLINE dlistCons #-}
+
+dlistConcatAll :: [DList a] -> DList a
+dlistConcatAll = foldr (.) id
+{-# INLINE dlistConcatAll #-}
+
+dlistToList :: DList a -> [a]
+dlistToList = ($ [])
+{-# INLINE dlistToList #-}
+
+dlistSingleton :: a -> DList a
+dlistSingleton a = (a:)
+{-# INLINE dlistSingleton #-}
+
+dlistEmpty :: DList a
+dlistEmpty = id
+{-# INLINE dlistEmpty #-}
+
 
 -- | Turn a 'Conc' into a 'Flat'. Note that thanks to the ugliness of
 -- 'empty', this may fail, e.g. @flatten Empty@.
 flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (Flat a)
 flatten c0 = withRunInIO $ \run -> do
 
+  -- why not app?
   let both :: forall k. Conc m k -> IO (Flat k)
       both Empty = E.throwIO EmptyWithNoAlternative
       both (Action m) = pure $ FlatApp $ FlatAction $ run m
-      both (LiftA2 f a b) = do
-        a' <- both a
-        b' <- both b
-        pure $ FlatApp $ FlatLiftA2 f a' b'
-      both (Alt a b) = do
-        a' <- alt a
-        b' <- alt b
-        case a' $ b' [] of
+      both (Lift cf ca) = do
+        f <- both cf
+        a <- both ca
+        pure $ FlatApp $ FlatLift f a
+      both (LiftA2 f ca cb) = do
+        a <- both ca
+        b <- both cb
+        pure $ FlatApp $ FlatLiftA2 f a b
+      both (Alt ca cb) = do
+        a <- alt ca
+        b <- alt cb
+        case dlistToList (a `dlistConcat` b) of
           [] -> E.throwIO EmptyWithNoAlternative
           [x] -> pure $ FlatApp x
           x:y:z -> pure $ FlatAlt x y z
@@ -599,19 +664,26 @@ flatten c0 = withRunInIO $ \run -> do
 
       -- Returns a difference list for cheaper concatenation
       alt :: forall k. Conc m k -> IO (DList (FlatApp k))
-      alt Empty = pure id
-      alt (Alt a b) = do
-        a' <- alt a
-        b' <- alt b
-        pure $ a' . b'
-      alt (Action m) = pure (FlatAction (run m):)
-      alt (LiftA2 f a b) = do
-        a' <- both a
-        b' <- both b
-        pure (FlatLiftA2 f a' b':)
-      alt (Pure a) = pure (FlatPure a:)
+      alt Empty = pure dlistEmpty
+      alt (Lift cf ca) = do
+        f <- both cf
+        a <- both ca
+        pure (dlistSingleton $ FlatLift f a)
+      alt (Alt ca cb) = do
+        a <- alt ca
+        b <- alt cb
+        pure $ a `dlistConcat` b
+      alt (Action m) = pure (dlistSingleton $ FlatAction (run m))
+      alt (LiftA2 f ca cb) = do
+        a <- both ca
+        b <- both cb
+        pure (dlistSingleton $ FlatLiftA2 f a b)
+      alt (Pure a) = pure (dlistSingleton $ FlatPure a)
 
   both c0
+
+-- TODO: Write test that verifies that FlatAlt is actually Flat
+-- ((conc a <|> conc b) <|> conc c) <|> (conc d <|> conc e)
 
 -- | Run a @Flat a@ on multiple threads.
 runFlat :: Flat a -> IO a
@@ -622,9 +694,9 @@ runFlat (FlatApp (FlatPure x)) = pure x
 
 -- Start off with all exceptions masked so we can install proper cleanup.
 runFlat f0 = E.uninterruptibleMask $ \restore -> do
-  -- How many threads have terminated? We need to ensure we kill all
+  -- How many threads have started? We need to ensure we kill all
   -- child threads and wait for them to die.
-  countVar <- newTVarIO 0
+  resultCountVar <- newTVarIO 0
 
   -- Forks off as many threads as necessary to run the given Flat a,
   -- and returns:
@@ -636,36 +708,44 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   --   can be killed (either when an exception is thrown, or when one
   --   of the alternatives completes first).
   --
-  -- It would be nice to have the STM action returned return an Either
+  -- It would be nice to have the returned STM action return an Either
   -- and keep the SomeException values somewhat explicit, but in all
   -- my testing this absolutely kills performance. Instead, we're
   -- going to use a hack of providing a TMVar to fill up with a
   -- SomeException when things fail.
+  --
+  -- TODO: Investigate why performance degradation on Either
   let go :: forall a.
             TMVar E.SomeException
          -> Flat a
          -> IO (STM a, DList C.ThreadId)
-      go _excVar (FlatApp (FlatPure x)) = pure (pure x, id)
+      go _excVar (FlatApp (FlatPure x)) = pure (pure x, dlistEmpty)
       go excVar (FlatApp (FlatAction io)) = do
         resVar <- newEmptyTMVarIO
         tid <- C.forkIOWithUnmask $ \restore1 -> do
           res <- E.try $ restore1 io
           atomically $ do
-            modifyTVar' countVar (+ 1)
+            -- TODO: What is the performance of this modifyTVar on high
+            -- contention?
+            modifyTVar' resultCountVar (+ 1)
             case res of
               Left e -> void $ tryPutTMVar excVar e
               Right x -> putTMVar resVar x
-        pure (readTMVar resVar, (tid:))
+        pure (readTMVar resVar, dlistSingleton tid)
+      go excVar (FlatApp (FlatLift cf ca)) = do
+        (f, tidsf) <- go excVar cf
+        (a, tidsa) <- go excVar ca
+        pure (f <*> a, tidsf `dlistConcat` tidsa)
       go excVar (FlatApp (FlatLiftA2 f a b)) = do
         (a', tidsa) <- go excVar a
         (b', tidsb) <- go excVar b
-        pure (liftA2 f a' b', tidsa . tidsb)
+        pure (liftA2 f a' b', tidsa `dlistConcat` tidsb)
 
       go excVar0 (FlatAlt x y z) = do
-        -- We're going to create our own excVar here to pass to the
-        -- children, so we can avoid letting the AsyncCancelled
-        -- exceptions we throw to the children here from propagating
-        -- and taking down the whole system.
+        -- As soon as one of the children finishes, we need to kill the siblings,
+        -- we're going to create our own excVar here to pass to the children, so
+        -- we can prevent the ThreadKilled exceptions we throw to the children
+        -- here from propagating and taking down the whole system.
         excVar <- newEmptyTMVarIO
         resVar <- newEmptyTMVarIO
         pairs <- traverse (go excVar . FlatApp) (x:y:z)
@@ -680,8 +760,12 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
             (Left <$> readTMVar excVar)
             blockers
           atomically $ do
-            modifyTVar' countVar (+ 1)
+            modifyTVar' resultCountVar (+ 1)
             case eres of
+              -- NOTE: The child threads are spawned from @traverse go@ call above, they
+              -- are _not_ children of this helper thread, and helper thread doesn't throw
+              -- synchronous exceptions, so, any exception that the try above would catch
+              -- must be an async exception.
               -- We were killed by an async exception, do nothing.
               Left (_ :: E.SomeException) -> pure ()
               -- Child thread died, propagate it
@@ -693,17 +777,22 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
           for_ workerTids $ \tids' ->
             -- NOTE: Replacing A.AsyncCancelled with KillThread as the
             -- 'A.AsyncCancelled' constructor is not exported in older versions
-            -- of the aysnc package
+            -- of the async package
             -- for_ (tids' []) $ \workerTid -> E.throwTo workerTid A.AsyncCancelled
-            for_ (tids' []) $ \workerTid -> C.killThread workerTid
+            for_ (dlistToList tids') $ \workerTid -> C.killThread workerTid
 
-        pure (readTMVar resVar, \rest -> helperTid : foldr ($) rest workerTids)
+        pure ( readTMVar resVar
+             , helperTid `dlistCons` dlistConcatAll workerTids
+             )
 
   excVar <- newEmptyTMVarIO
-  (getRes, mkTids) <- go excVar f0
-  let tids = mkTids []
+  (getRes, tids0) <- go excVar f0
+  let tids = dlistToList tids0
       tidCount = length tids
-      allDone count = E.assert (count <= tidCount) (count == tidCount)
+      allDone count =
+        if count > tidCount
+          then error ("allDone: count (" <> show count <> ") should never be greater than tidCount (" <> show tidCount <> ")")
+          else count == tidCount
 
   -- Automatically retry if we get killed by a
   -- BlockedIndefinitelyOnSTM. For more information, see:
@@ -713,7 +802,7 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   --
   let autoRetry action =
         action `E.catch`
-        \E.BlockedIndefinitelyOnSTM -> autoRetry action
+        \case E.BlockedIndefinitelyOnSTM -> autoRetry action
 
   -- Restore the original masking state while blocking and catch
   -- exceptions to allow the parent thread to be killed early.
@@ -721,12 +810,12 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
          (Left <$> readTMVar excVar) <|>
          (Right <$> getRes)
 
-  count0 <- atomically $ readTVar countVar
+  count0 <- atomically $ readTVar resultCountVar
   unless (allDone count0) $ do
     -- Kill all of the threads
     -- NOTE: Replacing A.AsyncCancelled with KillThread as the
     -- 'A.AsyncCancelled' constructor is not exported in older versions
-    -- of the aysnc package
+    -- of the async package
     -- for_ tids $ \tid -> E.throwTo tid A.AsyncCancelled
     for_ tids $ \tid -> C.killThread tid
 
@@ -734,8 +823,11 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
     -- original masking state here, just in case there's a bug in the
     -- cleanup code of a child thread, so that we can be killed by an
     -- async exception.
-    restore $ atomically $ do
-      count <- readTVar countVar
+    -- TODO: Why do we want to allow to be killed, why is not ok to hang in this situation?
+    restore $
+      atomically $ do
+      count <- readTVar resultCountVar
+      -- retries until resultCountVar has increased to the threadId count returned by go
       check $ allDone count
 
   -- Return the result or throw an exception. Yes, we could use
