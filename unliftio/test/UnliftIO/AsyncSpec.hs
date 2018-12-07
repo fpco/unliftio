@@ -59,7 +59,7 @@ spec = do
           conc (getMaskingState `shouldReturn` Unmasked)
 
 -- NOTE: Older versions of GHC have a timeout function that doesn't
--- workd on Windows
+-- work on Windows
 #if !WINDOWS
     it "allows to kill parent via timeout" $ do
       ref <- newIORef (0 :: Int)
