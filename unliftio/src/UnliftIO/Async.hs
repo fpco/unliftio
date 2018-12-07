@@ -62,13 +62,11 @@ import           Control.Concurrent       (threadDelay)
 import qualified Control.Concurrent       as C
 import           Control.Concurrent.Async (Async)
 import qualified Control.Concurrent.Async as A
-import           Control.Concurrent.MVar
 import           Control.Concurrent.STM
 import           Control.Exception        (Exception, SomeException)
-import           Control.Monad            (forever, liftM, unless, void, (>=>), replicateM_)
+import           Control.Monad            (forever, liftM, unless, void, (>=>))
 import           Control.Monad.IO.Unlift
 import           Data.Foldable            (for_, traverse_)
-import           Data.IORef
 import           Data.Typeable            (Typeable)
 import qualified UnliftIO.Exception       as UE
 
@@ -318,10 +316,21 @@ instance MonadUnliftIO m => Applicative (Concurrently m) where
   Concurrently fs <*> Concurrently as =
     Concurrently $ liftM (\(f, a) -> f a) (concurrently fs as)
 
--- | TODO: Add documentation here
+-- | Composing two unlifted 'Concurrently' values using 'Alternative' is the
+-- equivalent to using a 'race' combinator, the asynchrounous sub-routine that
+-- returns a value first is the one that gets it's value returned, the slowest
+-- sub-routine gets cancelled and it's thread is killed.
+--
 -- @since 0.1.0.0
 instance MonadUnliftIO m => Alternative (Concurrently m) where
-  -- | TODO: Add documentation here
+  -- | Care should be taken when using the 'empty' value of the 'Alternative'
+  -- interface, as it will create a thread that delays for a long period of
+  -- time. The reason behind this implementation is that any other computation
+  -- will finish first than the 'empty' value. This implementation is less than
+  -- ideal, and in a perfect world, we would have a typeclass family that allows
+  -- '(<|>)' but not 'empty'.
+  --
+  -- @since 0.1.0.0
   empty = Concurrently $ liftIO (forever (threadDelay maxBound))
   Concurrently as <|> Concurrently bs =
     Concurrently $ liftM (either id id) (race as bs)
@@ -451,7 +460,7 @@ mapConcurrently_ f t = withRunInIO $ \run -> runFlat $ traverse_
 -- @since 0.2.9.0
 data Conc m a where
   Action :: m a -> Conc m a
-  Lift   :: Conc m (v -> a) -> Conc m v -> Conc m a
+  Apply   :: Conc m (v -> a) -> Conc m v -> Conc m a
   LiftA2 :: (x -> y -> a) -> Conc m x -> Conc m y -> Conc m a
 
   -- Just an optimization to avoid spawning extra threads
@@ -508,13 +517,13 @@ instance MonadUnliftIO m => Applicative (Conc m) where
   -- (1)
   --   Action (fmap f downloadA)
   -- (2)
-  --   Lift (Action (fmap f downloadA)) (Action downloadB)
+  --   Apply (Action (fmap f downloadA)) (Action downloadB)
   -- (3)
-  --   Lift (Lift (Action (fmap f downloadA)) (Action downloadB))
+  --   Apply (Apply (Action (fmap f downloadA)) (Action downloadB))
   --        (Pure 123)
   -- @@@
   --
-  (<*>) = Lift
+  (<*>) = Apply
   {-# INLINE (<*>) #-}
   -- See comment above on Then
   -- (*>) = Then
@@ -594,13 +603,13 @@ instance Applicative Flat where
 data FlatApp a where
   FlatPure   :: a -> FlatApp a
   FlatAction :: IO a -> FlatApp a
-  FlatLift   :: Flat (v -> a) -> Flat v -> FlatApp a
+  FlatApply   :: Flat (v -> a) -> Flat v -> FlatApp a
   FlatLiftA2 :: (x -> y -> a) -> Flat x -> Flat y -> FlatApp a
 
 deriving instance Functor FlatApp
 instance Applicative FlatApp where
   pure = FlatPure
-  (<*>) mf ma = FlatLift (FlatApp mf) (FlatApp ma)
+  (<*>) mf ma = FlatApply (FlatApp mf) (FlatApp ma)
 #if MIN_VERSION_base(4,11,0)
   liftA2 f a b = FlatLiftA2 f (FlatApp a) (FlatApp b)
 #endif
@@ -641,7 +650,6 @@ dlistEmpty :: DList a
 dlistEmpty = id
 {-# INLINE dlistEmpty #-}
 
-
 -- | Turn a 'Conc' into a 'Flat'. Note that thanks to the ugliness of
 -- 'empty', this may fail, e.g. @flatten Empty@.
 --
@@ -652,10 +660,10 @@ flatten c0 = withRunInIO $ \run -> do
   let both :: forall k. Conc m k -> IO (Flat k)
       both Empty = E.throwIO EmptyWithNoAlternative
       both (Action m) = pure $ FlatApp $ FlatAction $ run m
-      both (Lift cf ca) = do
+      both (Apply cf ca) = do
         f <- both cf
         a <- both ca
-        pure $ FlatApp $ FlatLift f a
+        pure $ FlatApp $ FlatApply f a
       both (LiftA2 f ca cb) = do
         a <- both ca
         b <- both cb
@@ -672,10 +680,10 @@ flatten c0 = withRunInIO $ \run -> do
       -- Returns a difference list for cheaper concatenation
       alt :: forall k. Conc m k -> IO (DList (FlatApp k))
       alt Empty = pure dlistEmpty
-      alt (Lift cf ca) = do
+      alt (Apply cf ca) = do
         f <- both cf
         a <- both ca
-        pure (dlistSingleton $ FlatLift f a)
+        pure (dlistSingleton $ FlatApply f a)
       alt (Alt ca cb) = do
         a <- alt ca
         b <- alt cb
@@ -701,8 +709,8 @@ runFlat (FlatApp (FlatPure x)) = pure x
 
 -- Start off with all exceptions masked so we can install proper cleanup.
 runFlat f0 = E.uninterruptibleMask $ \restore -> do
-  -- How many threads have started? We need to ensure we kill all
-  -- child threads and wait for them to die.
+  -- How many threads have been spawned and finished their task? We need to
+  -- ensure we kill all child threads and wait for them to die.
   resultCountVar <- newTVarIO 0
 
   -- Forks off as many threads as necessary to run the given Flat a,
@@ -739,7 +747,7 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
               Left e  -> void $ tryPutTMVar excVar e
               Right x -> putTMVar resVar x
         pure (readTMVar resVar, dlistSingleton tid)
-      go excVar (FlatApp (FlatLift cf ca)) = do
+      go excVar (FlatApp (FlatApply cf ca)) = do
         (f, tidsf) <- go excVar cf
         (a, tidsa) <- go excVar ca
         pure (f <*> a, tidsf `dlistConcat` tidsa)
