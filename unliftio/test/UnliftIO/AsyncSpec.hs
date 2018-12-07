@@ -58,6 +58,9 @@ spec = do
         runConc $ conc (threadDelay maxBound) <|>
           conc (getMaskingState `shouldReturn` Unmasked)
 
+-- NOTE: Older versions of GHC have a timeout function that doesn't
+-- workd on Windows
+#if !WINDOWS
     it "allows to kill parent via timeout" $ do
       ref <- newIORef (0 :: Int)
       mres <- timeout 20 $ runConc $
@@ -72,6 +75,7 @@ spec = do
         2 -> error "it's 2"
         3 -> pure ()
         _ -> error $ "what? " ++ show res
+#endif
 
     it "throws right exception on empty" $
       runConc empty `shouldThrow` (== EmptyWithNoAlternative)
