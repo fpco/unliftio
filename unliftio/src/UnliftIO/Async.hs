@@ -1,12 +1,12 @@
-{-# LANGUAGE LambdaCase #-}
-{-# LANGUAGE DeriveGeneric #-}
-{-# LANGUAGE CPP #-}
-{-# LANGUAGE DeriveFunctor #-}
-{-# LANGUAGE DeriveDataTypeable #-}
-{-# LANGUAGE RankNTypes #-}
-{-# LANGUAGE GADTs #-}
-{-# LANGUAGE StandaloneDeriving #-}
+{-# LANGUAGE CPP                 #-}
+{-# LANGUAGE DeriveDataTypeable  #-}
+{-# LANGUAGE DeriveFunctor       #-}
+{-# LANGUAGE DeriveGeneric       #-}
+{-# LANGUAGE GADTs               #-}
+{-# LANGUAGE LambdaCase          #-}
+{-# LANGUAGE RankNTypes          #-}
 {-# LANGUAGE ScopedTypeVariables #-}
+{-# LANGUAGE StandaloneDeriving  #-}
 -- | Unlifted "Control.Concurrent.Async".
 --
 -- @since 0.1.0.0
@@ -57,38 +57,38 @@ module UnliftIO.Async
 #endif
   ) where
 
-import Control.Applicative
-import qualified Control.Concurrent as C
-import Control.Concurrent.Async (Async)
-import Control.Concurrent.STM
-import Control.Exception (SomeException, Exception)
-import Data.IORef
-import Data.Typeable (Typeable)
-import Control.Concurrent.MVar
-import qualified UnliftIO.Exception as UE
+import           Control.Applicative
+import           Control.Concurrent       (threadDelay)
+import qualified Control.Concurrent       as C
+import           Control.Concurrent.Async (Async)
 import qualified Control.Concurrent.Async as A
-import Control.Concurrent (threadDelay)
-import Control.Monad (forever, liftM, (>=>), void, unless)
-import Control.Monad.IO.Unlift
-import Data.Foldable (traverse_, for_)
+import           Control.Concurrent.MVar
+import           Control.Concurrent.STM
+import           Control.Exception        (Exception, SomeException)
+import           Control.Monad            (forever, liftM, unless, void, (>=>), replicateM_)
+import           Control.Monad.IO.Unlift
+import           Data.Foldable            (for_, traverse_)
+import           Data.IORef
+import           Data.Typeable            (Typeable)
+import qualified UnliftIO.Exception       as UE
 
 -- For the implementation of Conc below, we do not want any of the
 -- smart async exception handling logic from UnliftIO.Exception, since
 -- (eg) we're low-level enough to need to explicit be throwing async
 -- exceptions synchronously.
-import qualified Control.Exception as E
-import GHC.Generics (Generic)
+import qualified Control.Exception        as E
+import           GHC.Generics             (Generic)
 
 #if MIN_VERSION_base(4,9,0)
-import Data.Semigroup
+import           Data.Semigroup
 #else
-import Data.Monoid hiding (Alt)
-import Data.Foldable (Foldable)
-import Data.Traversable (Traversable)
+import           Data.Foldable            (Foldable)
+import           Data.Monoid              hiding (Alt)
+import           Data.Traversable         (Traversable)
 #endif
 
 #if MIN_VERSION_base(4,7,0)
-import Data.Traversable (traverse)
+import           Data.Traversable         (traverse)
 #endif
 
 -- | Unlifted 'A.async'.
@@ -350,43 +350,19 @@ instance (Monoid a, MonadUnliftIO m) => Monoid (Concurrently m a) where
 #endif
 --------------------------------------------------------------------------------
 
--- | TODO: Add documentation that specifies we are using Conc instead of Concurrently
+-- | Similar to 'mapConcurrently' but with arguments flipped
 --
 -- @since 0.1.0.0
 forConcurrently :: MonadUnliftIO m => Traversable t => t a -> (a -> m b) -> m (t b)
 forConcurrently = flip mapConcurrently
 {-# INLINE forConcurrently #-}
 
--- | TODO: Add documentation that specifies we are using Conc instead of Concurrently
+-- | Similar to 'mapConcurrently_' but with arguments flipped
 --
 -- @since 0.1.0.0
 forConcurrently_ :: MonadUnliftIO m => Foldable f => f a -> (a -> m b) -> m ()
 forConcurrently_ = flip mapConcurrently_
 {-# INLINE forConcurrently_ #-}
-
--- Conc uses GHC features that are not supported in versions <= to ghc-7.10
--- so we are going to export/use it when we have a higher version only.
---------------------------------------------------------------------------------
-#if MIN_VERSION_base(4,8,0)
---------------------------------------------------------------------------------
-
--- | Unlifted 'A.mapConcurrently'.
---
--- @since 0.1.0.0
-mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
-mapConcurrently f t = withRunInIO $ \run -> runFlat $ traverse
-  (FlatApp . FlatAction . run . f)
-  t
-{-# INLINE mapConcurrently #-}
-
--- | Unlifted 'A.mapConcurrently_'.
---
--- @since 0.1.0.0
-mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
-mapConcurrently_ f t = withRunInIO $ \run -> runFlat $ traverse_
-  (FlatApp . FlatAction . run . f)
-  t
-{-# INLINE mapConcurrently_ #-}
 
 -- | Unlifted 'A.replicateConcurrently'.
 --
@@ -409,6 +385,32 @@ replicateConcurrently_ cnt m =
     EQ -> void m
     GT -> mapConcurrently_ id (replicate cnt m)
 {-# INLINE replicateConcurrently_ #-}
+
+-- Conc uses GHC features that are not supported in versions <= to ghc-7.10
+-- so we are going to export/use it when we have a higher version only.
+--------------------------------------------------------------------------------
+#if MIN_VERSION_base(4,8,0)
+--------------------------------------------------------------------------------
+
+-- | Executes a 'Traversable' container of items concurrently, it uses the 'Flat'
+-- type internally.
+--
+-- @since 0.1.0.0
+mapConcurrently :: MonadUnliftIO m => Traversable t => (a -> m b) -> t a -> m (t b)
+mapConcurrently f t = withRunInIO $ \run -> runFlat $ traverse
+  (FlatApp . FlatAction . run . f)
+  t
+{-# INLINE mapConcurrently #-}
+
+-- | Executes a 'Traversable' container of items concurrently, it uses the 'Flat'
+-- type internally. This function ignores the results.
+--
+-- @since 0.1.0.0
+mapConcurrently_ :: MonadUnliftIO m => Foldable f => (a -> m b) -> f a -> m ()
+mapConcurrently_ f t = withRunInIO $ \run -> runFlat $ traverse_
+  (FlatApp . FlatAction . run . f)
+  t
+{-# INLINE mapConcurrently_ #-}
 
 
 -- More efficient Conc implementation
@@ -492,6 +494,26 @@ runConc = flatten >=> (liftIO . runFlat)
 instance MonadUnliftIO m => Applicative (Conc m) where
   pure = Pure
   {-# INLINE pure #-}
+  -- | Following is an example of how an 'Applicative' expands to a Tree
+  --
+  -- @@@
+  -- downloadA :: IO String
+  -- downloadB :: IO String
+  --
+  -- (f <$> conc downloadA <*> conc downloadB <*> pure 123)
+  --
+  --   (((f <$> a) <*> b) <*> c))
+  --        (1)    (2)    (3)
+  --
+  -- (1)
+  --   Action (fmap f downloadA)
+  -- (2)
+  --   Lift (Action (fmap f downloadA)) (Action downloadB)
+  -- (3)
+  --   Lift (Lift (Action (fmap f downloadA)) (Action downloadB))
+  --        (Pure 123)
+  -- @@@
+  --
   (<*>) = Lift
   {-# INLINE (<*>) #-}
   -- See comment above on Then
@@ -503,22 +525,6 @@ instance MonadUnliftIO m => Applicative (Conc m) where
 
   a *> b = LiftA2 (\_ x -> x) a b
   {-# INLINE (*>) #-}
-
-  --
-  -- downloadA :: IO String
-  -- downloadB :: IO String
-  --
-  -- (f <$> conc downloadA <*> conc downloadB <*> pure 123)
-  -- (((f <$> a) <*> b) <*> c))
-  --      (1)    (2)    (3)
-  -- (1)
-  --   Action (fmap f downloadA)
-  -- (2)
-  --   LiftA2 id (Action (fmap f downloadA)) (Action downloadB)
-  -- (3)
-  --   LiftA2 id (LiftA2 id (Action (fmap f downloadA)) (Action downloadB))
-  --             (Pure 123)
-
 
 -- | @since 0.2.9.0
 instance MonadUnliftIO m => Alternative (Conc m) where
@@ -638,6 +644,7 @@ dlistEmpty = id
 
 -- | Turn a 'Conc' into a 'Flat'. Note that thanks to the ugliness of
 -- 'empty', this may fail, e.g. @flatten Empty@.
+--
 flatten :: forall m a. MonadUnliftIO m => Conc m a -> m (Flat a)
 flatten c0 = withRunInIO $ \run -> do
 
@@ -657,8 +664,8 @@ flatten c0 = withRunInIO $ \run -> do
         a <- alt ca
         b <- alt cb
         case dlistToList (a `dlistConcat` b) of
-          [] -> E.throwIO EmptyWithNoAlternative
-          [x] -> pure $ FlatApp x
+          []    -> E.throwIO EmptyWithNoAlternative
+          [x]   -> pure $ FlatApp x
           x:y:z -> pure $ FlatAlt x y z
       both (Pure a) = pure $ FlatApp $ FlatPure a
 
@@ -729,7 +736,7 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
             -- contention?
             modifyTVar' resultCountVar (+ 1)
             case res of
-              Left e -> void $ tryPutTMVar excVar e
+              Left e  -> void $ tryPutTMVar excVar e
               Right x -> putTMVar resVar x
         pure (readTMVar resVar, dlistSingleton tid)
       go excVar (FlatApp (FlatLift cf ca)) = do
@@ -769,9 +776,9 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
               -- We were killed by an async exception, do nothing.
               Left (_ :: E.SomeException) -> pure ()
               -- Child thread died, propagate it
-              Right (Left e) -> void $ tryPutTMVar excVar0 e
+              Right (Left e)              -> void $ tryPutTMVar excVar0 e
               -- Successful result from one of the children
-              Right (Right res) -> putTMVar resVar res
+              Right (Right res)           -> putTMVar resVar res
 
           -- And kill all of the threads
           for_ workerTids $ \tids' ->
@@ -791,7 +798,11 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
       tidCount = length tids
       allDone count =
         if count > tidCount
-          then error ("allDone: count (" <> show count <> ") should never be greater than tidCount (" <> show tidCount <> ")")
+          then error ("allDone: count ("
+                      <> show count
+                      <> ") should never be greater than tidCount ("
+                      <> show tidCount
+                      <> ")")
           else count == tidCount
 
   -- Automatically retry if we get killed by a
@@ -824,8 +835,7 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
     -- cleanup code of a child thread, so that we can be killed by an
     -- async exception.
     -- TODO: Why do we want to allow to be killed, why is not ok to hang in this situation?
-    restore $
-      atomically $ do
+    restore $ atomically $ do
       count <- readTVar resultCountVar
       -- retries until resultCountVar has increased to the threadId count returned by go
       check $ allDone count
@@ -834,9 +844,9 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   -- either or join, but explicit pattern matching is nicer here.
   case res of
     -- Parent thread was killed with an async exception
-    Left e -> E.throwIO (e :: E.SomeException)
+    Left e          -> E.throwIO (e :: E.SomeException)
     -- Some child thread died
-    Right (Left e) -> E.throwIO e
+    Right (Left e)  -> E.throwIO e
     -- Everything worked!
     Right (Right x) -> pure x
 {-# INLINEABLE runFlat #-}
@@ -844,29 +854,6 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
 --------------------------------------------------------------------------------
 #else
 --------------------------------------------------------------------------------
-
--- | Unlifted 'A.replicateConcurrently'.
---
--- @since 0.1.0.0
-replicateConcurrently :: (Applicative m, MonadUnliftIO m) => Int -> m a -> m [a]
-replicateConcurrently cnt m =
-  case compare cnt 1 of
-    LT -> pure []
-    EQ -> (:[]) <$> m
-    GT -> mapConcurrently id (replicate cnt m)
-{-# INLINE replicateConcurrently #-}
-
--- | Unlifted 'A.replicateConcurrently_'.
---
--- @since 0.1.0.0
-replicateConcurrently_ :: (Applicative m, Functor m, MonadUnliftIO m) => Int -> m a -> m ()
-replicateConcurrently_ cnt m =
-  case compare cnt 1 of
-    LT -> pure ()
-    EQ -> void m
-    GT -> mapConcurrently_ id (replicate cnt m)
-{-# INLINE replicateConcurrently_ #-}
-
 
 -- | Unlifted 'A.mapConcurrently'.
 --

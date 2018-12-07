@@ -9,6 +9,7 @@ import UnliftIO
 import Data.List (nub)
 import Control.Applicative
 import Control.Concurrent (myThreadId, threadDelay)
+import qualified Control.Exception as CE (ErrorCall(..), try)
 import GHC.Conc.Sync (ThreadStatus(..), threadStatus)
 import Control.Concurrent.STM (throwSTM)
 import Control.Exception (getMaskingState, MaskingState (Unmasked))
@@ -35,17 +36,28 @@ spec = do
 
 #if MIN_VERSION_base(4,8,0)
   describe "conc" $ do
-    it "handles exceptions" $ do
+    it "handles sync exceptions" $ do
       runConc (conc (pure ()) *> conc (throwIO MyExc))
         `shouldThrow` (== MyExc)
+
+    it "handles async exceptions" $ do
+      tidVar <- newEmptyMVar
+      result <- CE.try $ runConc (conc (pure ())
+                               *> conc (takeMVar tidVar >>= (`throwTo` (CE.ErrorCall "having error")))
+                               *> conc (myThreadId
+                                        >>= putMVar tidVar
+                                        >> threadDelay 1000100))
+      case result of
+        Right _ ->
+          expectationFailure "Expecting an error, got none"
+        Left (SomeAsyncException err) ->
+          displayException err `shouldBe` "having error"
 
     it "has an Unmasked masking state for given subroutines" $
       uninterruptibleMask_ $
         runConc $ conc (threadDelay maxBound) <|>
           conc (getMaskingState `shouldReturn` Unmasked)
 
-    -- NOTE: given that we don't have the ThreadId of the resulting threads
-    -- there is no other way to 'throwTo' those threads
     it "allows to kill parent via timeout" $ do
       ref <- newIORef (0 :: Int)
       mres <- timeout 20 $ runConc $
