@@ -6,6 +6,7 @@ import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
 import UnliftIO
+import UnliftIO.Internals.Async
 import Data.List (nub)
 import Control.Applicative
 import Control.Concurrent (myThreadId, threadDelay)
@@ -35,6 +36,25 @@ spec = do
         tids `shouldBe` (nub tids)
 
 #if MIN_VERSION_base(4,8,0)
+  describe "flatten" $ do
+    -- NOTE: cannot make this test a property test given
+    -- Flat and Conc cannot have an Eq property
+    it "flattens all alternative trees" $ do
+      let
+        concValue :: Conc IO Int
+        concValue =
+            conc (pure 1) <|> conc (pure 2) <|> pure 3
+            -- Alt (Alt (Action (pure 1)) (Action (pure 2)))
+            --     (Pure 3)
+      flatConc <- flatten concValue
+      case flatConc of
+        FlatAlt (FlatAction action1)
+                (FlatAction action2)
+                [(FlatPure 3)] -> do
+          action1 `shouldReturn` 1
+          action2 `shouldReturn` 2
+        _ -> expectationFailure "expecting flatten to work but didn't"
+
   describe "conc" $ do
     it "handles sync exceptions" $ do
       runConc (conc (pure ()) *> conc (throwIO MyExc))
@@ -108,6 +128,19 @@ spec = do
       runConc composed `shouldThrow` (== MyExc)
 
   describe "Conc Alternative instance" $ do
+    it "is left associative" $ do
+      let
+        concValue :: Conc IO Int
+        concValue =
+            conc (pure 1) <|> conc (pure 2) <|> conc (pure 3)
+      case concValue of
+        Alt (Alt (Action action1) (Action action2)) (Action action3) -> do
+          action1 `shouldReturn` 1
+          action2 `shouldReturn` 2
+          action3 `shouldReturn` 3
+
+        _ -> expectationFailure "expecting Conc Alternative to be left associative, but it wasn't"
+
     it "executes body of all alternative blocks" $ do
       var <- newEmptyMVar
       runConc $
