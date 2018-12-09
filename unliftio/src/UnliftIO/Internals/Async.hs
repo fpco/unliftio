@@ -328,7 +328,10 @@ forConcurrently_ = flip mapConcurrently_
 -- | Unlifted 'A.replicateConcurrently'.
 --
 -- @since 0.1.0.0
-replicateConcurrently :: MonadUnliftIO m => Int -> m a -> m [a]
+#if MIN_VERSION_base(4,7,0)
+#else
+replicateConcurrently :: (Functor m, MonadUnliftIO m) => Int -> m a -> m [a]
+#endif
 replicateConcurrently cnt m =
   case compare cnt 1 of
     LT -> pure []
@@ -339,7 +342,11 @@ replicateConcurrently cnt m =
 -- | Unlifted 'A.replicateConcurrently_'.
 --
 -- @since 0.1.0.0
+#if MIN_VERSION_base(4,7,0)
+replicateConcurrently_ :: (Applicative m, MonadUnliftIO m) => Int -> m a -> m ()
+#else
 replicateConcurrently_ :: (MonadUnliftIO m) => Int -> m a -> m ()
+#endif
 replicateConcurrently_ cnt m =
   case compare cnt 1 of
     LT -> pure ()
