@@ -777,10 +777,7 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
   --
   let autoRetry action =
         action `E.catch`
-        -- NOTE: This @case@ is important as it will display new warnings in the
-        -- scenario where the `BlockedIndefinitelyOnSTM` type has new
-        -- constructor values
-        \case E.BlockedIndefinitelyOnSTM -> autoRetry action
+        \E.BlockedIndefinitelyOnSTM -> autoRetry action
 
   -- Restore the original masking state while blocking and catch
   -- exceptions to allow the parent thread to be killed early.
@@ -797,11 +794,10 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
     -- for_ tids $ \tid -> E.throwTo tid A.AsyncCancelled
     for_ tids $ \tid -> C.killThread tid
 
-    -- Wait for all of the threads to die. We're going to restore the
-    -- original masking state here, just in case there's a bug in the
-    -- cleanup code of a child thread, so that we can be killed by an
-    -- async exception.
-    -- TODO: Why do we want to allow to be killed, why is not ok to hang in this situation?
+    -- Wait for all of the threads to die. We're going to restore the original
+    -- masking state here, just in case there's a bug in the cleanup code of a
+    -- child thread, so that we can be killed by an async exception. We decided
+    -- this is a better behavior than hanging indefinitely and wait for a SIGKILL.
     restore $ atomically $ do
       count <- readTVar resultCountVar
       -- retries until resultCountVar has increased to the threadId count returned by go
