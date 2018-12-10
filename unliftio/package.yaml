@@ -25,13 +25,19 @@ dependencies:
   - unliftio-core >= 0.1.1.0
 
 when:
-- condition: "!os(Windows)"
-  dependencies:
-  - unix
+- condition: os(windows)
+  then:
+    cpp-options: -DWINDOWS
+  else:
+    dependencies:
+    - unix
 
 library:
   source-dirs:
   - src
+
+  ghc-options:
+    - -fwarn-incomplete-uni-patterns
 
   when:
   - condition: impl(ghc <= 7.10)
