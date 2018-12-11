@@ -84,7 +84,11 @@ import Control.Concurrent.STM (STM, TVar, TMVar, TChan, TQueue, TBQueue)
 import qualified Control.Concurrent.STM as STM
 import Control.Monad.IO.Unlift
 import System.Mem.Weak (Weak)
+#if MIN_VERSION_base(4, 8, 0)
+import GHC.Natural (Natural)
+#else
 import Numeric.Natural (Natural)
+#endif
 
 -- | Lifted version of 'STM.atomically'
 --

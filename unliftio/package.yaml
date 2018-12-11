@@ -1,5 +1,5 @@
 name:                unliftio
-version:             0.2.9
+version:             0.2.10
 synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO (batteries included)
 description:         Please see the documentation and README at <https://www.stackage.org/package/unliftio>
 homepage:            https://github.com/fpco/unliftio/tree/master/unliftio#readme
@@ -25,18 +25,24 @@ dependencies:
   - unliftio-core >= 0.1.1.0
 
 when:
-- condition: "!os(Windows)"
-  dependencies:
-  - unix
-- condition: "!impl(ghc >= 7.10)"  
-  dependencies: nats (>= 0.1.3 && < 0.3) || (>= 1 && < 1.2)
-
+- condition: os(windows)
+  then:
+    cpp-options: -DWINDOWS
+  else:
+    dependencies:
+    - unix
 
 library:
   source-dirs:
   - src
 
+  ghc-options:
+    - -fwarn-incomplete-uni-patterns
+
   when:
+  - condition: impl(ghc <= 7.10)
+    dependencies:
+      - nats
   - condition: os(darwin)
     then:
       c-sources: cbits/time-osx.c
@@ -57,3 +63,17 @@ tests:
     - hspec
     - QuickCheck
     - unliftio
+    - QuickCheck
+
+benchmarks:
+  conc-bench:
+    source-dirs:
+    - bench
+    main: ConcBench.hs
+    dependencies:
+    - unliftio
+    - gauge
+    ghc-options:
+    - -O2
+    - -threaded
+    - -rtsopts

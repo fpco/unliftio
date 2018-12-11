@@ -6,6 +6,10 @@
 {-# LANGUAGE ImplicitParams #-}
 -- | Unlifted "Control.Exception", with extra async exception safety
 -- and more helper functions.
+--
+-- This module works best when your cleanup functions adhere to certain
+-- expectations around exception safety and interruptible actions.
+-- For more details, see [this exception safety tutorial](https://haskell-lang.org/tutorial/exception-safety).
 module UnliftIO.Exception
   ( -- * Throwing
     throwIO
