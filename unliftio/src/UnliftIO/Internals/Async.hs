@@ -21,8 +21,7 @@ import           Control.Monad            (forever, liftM, unless, void, (>=>))
 import           Control.Monad.IO.Unlift
 import           Data.Foldable            (for_, traverse_)
 import           Data.Typeable            (Typeable)
-import           Control.Concurrent.MVar (MVar, modifyMVar, newMVar)
-import           Data.IORef (IORef, readIORef, writeIORef, newIORef)
+import           Data.IORef (IORef, readIORef, atomicWriteIORef, newIORef, atomicModifyIORef')
 import qualified UnliftIO.Exception       as UE
 
 -- For the implementation of Conc below, we do not want any of the
@@ -947,22 +946,22 @@ pooledMapConcurrentlyIO numProcs f xs =
 -- from the queue if an job is available.
 pooledConcurrently
   :: Int -- ^ Max. number of threads. Should not be less than 1.
-  -> MVar [a] -- ^ Task queue. These are required as inputs for the jobs.
+  -> IORef [a] -- ^ Task queue. These are required as inputs for the jobs.
   -> (a -> IO b) -- ^ The task which will be run concurrently (but
                  -- will be pooled properly).
   -> IO ()
 pooledConcurrently numProcs jobsVar f = do
   forConcurrently_ [1..numProcs] $ \_ -> do
-    let loop  = do
-          mbJob :: Maybe a <- modifyMVar jobsVar $ \x -> case x of
-            [] -> return ([], Nothing)
-            var : vars -> return (vars, Just var)
+    let loop = do
+          mbJob :: Maybe a <- atomicModifyIORef' jobsVar $ \x -> case x of
+            [] -> ([], Nothing)
+            var : vars -> (vars, Just var)
           case mbJob of
             Nothing -> return ()
             Just x -> do
               _ <- f x
               loop
-    loop
+     in loop
 
 pooledMapConcurrentlyIO' ::
     Traversable t => Int  -- ^ Max. number of threads. Should not be less than 1.
@@ -974,20 +973,20 @@ pooledMapConcurrentlyIO' numProcs f xs = do
   jobs :: t (a, IORef b) <-
     for xs (\x -> (x, ) <$> newIORef (error "pooledMapConcurrentlyIO': empty IORef"))
   -- ...put all the inputs in a queue..
-  jobsVar :: MVar [(a, IORef b)] <- newMVar (toList jobs)
+  jobsVar :: IORef [(a, IORef b)] <- newIORef (toList jobs)
   -- ...run `numProcs` threads in parallel, each
   -- of them consuming the queue and filling in
   -- the respective IORefs.
-  pooledConcurrently numProcs jobsVar $ \ (x, outRef) -> f x >>= writeIORef outRef      -- Read all the IORefs
+  pooledConcurrently numProcs jobsVar $ \ (x, outRef) -> f x >>= atomicWriteIORef outRef      -- Read all the IORefs
   for jobs (\(_, outputRef) -> readIORef outputRef)
 
 pooledMapConcurrentlyIO_' ::
-  Traversable t => Int -> (a -> IO b) -> t a -> IO ()
+  Foldable t => Int -> (a -> IO b) -> t a -> IO ()
 pooledMapConcurrentlyIO_' numProcs f jobs = do
-  jobsVar :: MVar [a] <- newMVar (toList jobs)
+  jobsVar :: IORef [a] <- newIORef (toList jobs)
   pooledConcurrently numProcs jobsVar f
 
-pooledMapConcurrentlyIO_ :: Traversable t => Int -> (a -> IO b) -> t a -> IO ()
+pooledMapConcurrentlyIO_ :: Foldable t => Int -> (a -> IO b) -> t a -> IO ()
 pooledMapConcurrentlyIO_ numProcs f xs =
     if (numProcs < 1)
     then error "pooledMapconcurrentlyIO_: number of threads < 1"
@@ -997,7 +996,7 @@ pooledMapConcurrentlyIO_ numProcs f xs =
 -- discarded.
 --
 -- @since 0.2.10
-pooledMapConcurrentlyN_ :: (MonadUnliftIO m, Traversable f)
+pooledMapConcurrentlyN_ :: (MonadUnliftIO m, Foldable f)
                         => Int -- ^ Max. number of threads. Should not be less than 1.
                         -> (a -> m b) -> f a -> m ()
 pooledMapConcurrentlyN_ numProcs f t =
@@ -1006,7 +1005,7 @@ pooledMapConcurrentlyN_ numProcs f t =
 -- | Like 'pooledMapConcurrently' but with the return value discarded.
 --
 -- @since 0.2.10
-pooledMapConcurrently_ :: (MonadUnliftIO m, Traversable f) => (a -> m b) -> f a -> m ()
+pooledMapConcurrently_ :: (MonadUnliftIO m, Foldable f) => (a -> m b) -> f a -> m ()
 pooledMapConcurrently_ f t =
   withRunInIO $ \run -> do
     numProcs <- getNumCapabilities
@@ -1015,16 +1014,16 @@ pooledMapConcurrently_ f t =
 -- | Like 'pooledMapConcurrently_' but with flipped arguments.
 --
 -- @since 0.2.10
-pooledForConcurrently_ :: (MonadUnliftIO m, Traversable f) => f a -> (a -> m b) -> m ()
-pooledForConcurrently_ t f = flip pooledMapConcurrently_ t f
+pooledForConcurrently_ :: (MonadUnliftIO m, Foldable f) => f a -> (a -> m b) -> m ()
+pooledForConcurrently_ = flip pooledMapConcurrently_
 
 -- | Like 'pooledMapConcurrentlyN_' but with flipped arguments.
 --
 -- @since 0.2.10
-pooledForConcurrentlyN_ :: (MonadUnliftIO m, Traversable t)
+pooledForConcurrentlyN_ :: (MonadUnliftIO m, Foldable t)
                         => Int -- ^ Max. number of threads. Should not be less than 1.
                         -> t a -> (a -> m b) -> m ()
-pooledForConcurrentlyN_ numProcs xs f = flip (pooledMapConcurrentlyN_ numProcs) xs f
+pooledForConcurrentlyN_ numProcs = flip (pooledMapConcurrentlyN_ numProcs)
 
 
 -- | Pooled version of 'replicateConcurrently'. Performs the action in
