@@ -925,7 +925,7 @@ pooledMapConcurrently f xs = do
 pooledForConcurrentlyN :: (MonadUnliftIO m, Traversable t)
                       => Int -- ^ Max. number of threads. Should not be less than 1.
                       -> t a -> (a -> m b) -> m (t b)
-pooledForConcurrentlyN numProcs xs f = flip (pooledMapConcurrentlyN numProcs) xs f
+pooledForConcurrentlyN numProcs = flip (pooledMapConcurrentlyN numProcs)
 
 -- | Similar to 'pooledForConcurrentlyN' but with number of threads
 -- set from 'getNumCapabilities'. Usually this is useful for CPU bound
@@ -933,7 +933,7 @@ pooledForConcurrentlyN numProcs xs f = flip (pooledMapConcurrentlyN numProcs) xs
 --
 -- @since 0.2.10
 pooledForConcurrently :: (MonadUnliftIO m, Traversable t) => t a -> (a -> m b) -> m (t b)
-pooledForConcurrently xs f = flip pooledMapConcurrently xs f
+pooledForConcurrently = flip pooledMapConcurrently
 
 pooledMapConcurrentlyIO :: Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
 pooledMapConcurrentlyIO numProcs f xs =
@@ -941,8 +941,16 @@ pooledMapConcurrentlyIO numProcs f xs =
     then error "pooledMapconcurrentlyIO: number of threads < 1"
     else pooledMapConcurrentlyIO' numProcs f xs
 
+-- | Performs the actual pooling for the tasks. This function will
+-- continue execution until the task queue becomes empty. When one of
+-- the pooled thread finishes it's task, it will pickup the next task
+-- from the queue if an job is available.
 pooledConcurrently
-  :: Int -> MVar [a] -> (a -> IO b) -> IO ()
+  :: Int -- ^ Max. number of threads. Should not be less than 1.
+  -> MVar [a] -- ^ Task queue. These are required as inputs for the jobs.
+  -> (a -> IO b) -- ^ The task which will be run concurrently (but
+                 -- will be pooled properly).
+  -> IO ()
 pooledConcurrently numProcs jobsVar f = do
   forConcurrently_ [1..numProcs] $ \_ -> do
     let loop  = do
@@ -957,7 +965,10 @@ pooledConcurrently numProcs jobsVar f = do
     loop
 
 pooledMapConcurrentlyIO' ::
-  Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
+    Traversable t => Int  -- ^ Max. number of threads. Should not be less than 1.
+                  -> (a -> IO b)
+                  -> t a
+                  -> IO (t b)
 pooledMapConcurrentlyIO' numProcs f xs = do
   -- prepare one IORef per result...
   jobs :: t (a, IORef b) <-
