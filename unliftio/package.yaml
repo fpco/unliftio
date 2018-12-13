@@ -61,7 +61,6 @@ tests:
     main: Spec.hs
     dependencies:
     - hspec
-    - QuickCheck
     - unliftio
     - QuickCheck
 
