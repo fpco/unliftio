@@ -951,7 +951,7 @@ pooledConcurrently
                  -- will be pooled properly).
   -> IO ()
 pooledConcurrently numProcs jobsVar f = do
-  forConcurrently_ [1..numProcs] $ \_ -> do
+  replicateConcurrently_ numProcs $ do
     let loop = do
           mbJob :: Maybe a <- atomicModifyIORef' jobsVar $ \x -> case x of
             [] -> ([], Nothing)
