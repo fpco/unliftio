@@ -5,7 +5,7 @@ module UnliftIO.AsyncSpec (spec) where
 import Test.Hspec
 import Test.Hspec.QuickCheck
 import Test.QuickCheck
-import UnliftIO
+import UnliftIO hiding (newEmptyTMVarIO)
 import UnliftIO.Internals.Async
 import Data.List (nub)
 import Control.Applicative
@@ -36,7 +36,36 @@ spec = do
         tids `shouldBe` (nub tids)
 
 #if MIN_VERSION_base(4,8,0)
+  it "runFlatten" $ do
+    let
+      concValue :: Conc IO Int
+      concValue =
+          conc (pure 1) *> conc (pure 2) *> pure 3
+
+    flatValue <- flatten concValue
+    runFlat flatValue `shouldReturn` 3
+
   describe "flatten" $ do
+    it "keeps applicative structure of a conc tree" $ do
+      let
+        concValue :: Conc IO Int
+        concValue =
+            conc (pure 1) *> conc (pure 2) *> pure 3
+
+      case concValue of
+        Then (Then (Action _) (Action _)) (Pure _) -> return ()
+        _ -> expectationFailure "Expecting two Then constructors, got something different"
+
+      flattenValue <- flatten concValue
+      case flattenValue of
+        FlatApp
+          (FlatThen
+            (FlatApp (FlatThen (FlatApp (FlatAction _))
+                               (FlatApp (FlatAction _))))
+            (FlatApp (FlatPure _))) ->
+          return ()
+        _ -> expectationFailure "Expecting two FlatApply constructors, got something different"
+
     -- NOTE: cannot make this test a property test given
     -- Flat and Conc cannot have an Eq property
     it "flattens all alternative trees" $ do
@@ -74,9 +103,7 @@ spec = do
           displayException err `shouldBe` "having error"
 
     it "has an Unmasked masking state for given subroutines" $
-      uninterruptibleMask_ $
-        runConc $ conc (threadDelay maxBound) <|>
-          conc (getMaskingState `shouldReturn` Unmasked)
+      runConc $ conc (getMaskingState `shouldReturn` Unmasked)
 
 -- NOTE: Older versions of GHC have a timeout function that doesn't
 -- work on Windows
