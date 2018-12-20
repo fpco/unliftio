@@ -947,7 +947,7 @@ pooledMapConcurrentlyIO numProcs f xs =
 pooledConcurrently
   :: Int -- ^ Max. number of threads. Should not be less than 1.
   -> IORef [a] -- ^ Task queue. These are required as inputs for the jobs.
-  -> (a -> IO b) -- ^ The task which will be run concurrently (but
+  -> (a -> IO ()) -- ^ The task which will be run concurrently (but
                  -- will be pooled properly).
   -> IO ()
 pooledConcurrently numProcs jobsVar f = do
@@ -959,7 +959,7 @@ pooledConcurrently numProcs jobsVar f = do
           case mbJob of
             Nothing -> return ()
             Just x -> do
-              _ <- f x
+              f x
               loop
      in loop
 
@@ -981,7 +981,7 @@ pooledMapConcurrentlyIO' numProcs f xs = do
   for jobs (\(_, outputRef) -> readIORef outputRef)
 
 pooledMapConcurrentlyIO_' ::
-  Foldable t => Int -> (a -> IO b) -> t a -> IO ()
+  Foldable t => Int -> (a -> IO ()) -> t a -> IO ()
 pooledMapConcurrentlyIO_' numProcs f jobs = do
   jobsVar :: IORef [a] <- newIORef (toList jobs)
   pooledConcurrently numProcs jobsVar f
@@ -990,7 +990,7 @@ pooledMapConcurrentlyIO_ :: Foldable t => Int -> (a -> IO b) -> t a -> IO ()
 pooledMapConcurrentlyIO_ numProcs f xs =
     if (numProcs < 1)
     then error "pooledMapconcurrentlyIO_: number of threads < 1"
-    else pooledMapConcurrentlyIO_' numProcs f xs
+    else pooledMapConcurrentlyIO_' numProcs (\x -> f x >> return ()) xs
 
 -- | Like 'pooledMapConcurrentlyN' but with the return value
 -- discarded.
