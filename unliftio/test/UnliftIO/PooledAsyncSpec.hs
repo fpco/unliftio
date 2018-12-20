@@ -1,11 +1,13 @@
 {-#LANGUAGE DeriveDataTypeable#-}
+{-#LANGUAGE BangPatterns#-}
 
 module UnliftIO.PooledAsyncSpec (spec) where
 
 import Test.Hspec
 import Control.Concurrent
-import Data.List (nub, sort)
+import Data.List (sort)
 import Test.QuickCheck
+import qualified Data.Set as Set
 import Data.Functor ((<$>))
 import UnliftIO
 
@@ -13,6 +15,16 @@ data MyPooledException = PoolHellException
                          deriving (Show, Typeable)
 
 instance Exception MyPooledException
+
+-- | Strip out duplicates. (Taken from rio)
+nubOrd :: Ord a => [a] -> [a]
+nubOrd =
+  loop mempty
+  where
+    loop _ [] = []
+    loop !s (a:as)
+      | a `Set.member` s = loop s as
+      | otherwise = a : loop (Set.insert a s) as
 
 spec :: Spec
 spec = do
@@ -49,15 +61,15 @@ spec = do
 
     it "should not spawn more than five threads for five concurrent tasks" $ do
        xs <- (pooledMapConcurrentlyN 5 action [1..5])
-       (length $ nub xs) `shouldSatisfy` (<= (5 :: Int))
+       (length $ nubOrd xs) `shouldSatisfy` (<= (5 :: Int))
 
     it "should not spawn more than three threads for five concurrent tasks" $ do
        xs <- (pooledMapConcurrentlyN 3 action [1..5])
-       (length $ nub xs) `shouldSatisfy` (<= (3 :: Int))
+       (length $ nubOrd xs) `shouldSatisfy` (<= (3 :: Int))
 
     it "should spawn only one thread" $ do
        xs <- (pooledMapConcurrentlyN 1 action [1..5])
-       (length $ nub xs) `shouldBe` 1
+       (length $ nubOrd xs) `shouldBe` 1
 
     it "never uses more than the given number of pools and doesn't miss any return values" $
         forAllShrink ((+ 1) . abs <$> arbitrary) (filter (>= 1) . shrink) $ \threads ->
@@ -71,7 +83,7 @@ spec = do
                 list' <- pooledMapConcurrentlyN threads go list
                 sort list' `shouldBe` sort list
                 tids <- readTVarIO threadIdsVar
-                length (nub tids) `shouldSatisfy` (<= threads)
+                length (nubOrd tids) `shouldSatisfy` (<= threads)
 
   describe "pooled mapConcurrencyN_" $ do
     it "Throws exception properly" $ do
@@ -116,7 +128,7 @@ spec = do
        tid <- myThreads
        xs <- pooledMapConcurrentlyN_ 5 (\_ -> collectThreads tid) [1..5]
        tids <- atomically $ readTVar tid
-       (length $ nub tids) `shouldSatisfy` (<= 5)
+       (length $ nubOrd tids) `shouldSatisfy` (<= 5)
 
     it "Not more than 5 threads will be spawned even if pooling is set to 8 " $ do
        let myThreads :: IO (TVar [ThreadId])
@@ -133,7 +145,7 @@ spec = do
        tid <- myThreads
        xs <- pooledMapConcurrentlyN_ 8 (\_ -> collectThreads tid) [1..5]
        tids <- atomically $ readTVar tid
-       (length $ nub tids) `shouldSatisfy` (<= 5)
+       (length $ nubOrd tids) `shouldSatisfy` (<= 5)
 
   describe "replicate concurrencyN" $ do
     it "Throws exception properly" $ do
@@ -151,15 +163,15 @@ spec = do
 
     it "should not spawn more than five threads for five concurrent tasks" $ do
        xs <- (pooledReplicateConcurrentlyN 5 5 (action 1))
-       (length $ nub xs) `shouldSatisfy` (<= (5 :: Int))
+       (length $ nubOrd xs) `shouldSatisfy` (<= (5 :: Int))
 
     it "should not spawn more than three threads for five concurrent tasks" $ do
        xs <- (pooledReplicateConcurrentlyN 3 5 (action 1))
-       (length $ nub xs) `shouldSatisfy` (<= (3 :: Int))
+       (length $ nubOrd xs) `shouldSatisfy` (<= (3 :: Int))
 
     it "should spawn only one thread" $ do
        xs <- (pooledReplicateConcurrentlyN 1 5 (action 1))
-       (length $ nub xs) `shouldBe` 1
+       (length $ nubOrd xs) `shouldBe` 1
 
     it "should give empty list" $ do
        xs <- (pooledReplicateConcurrentlyN 3 0 (action 1))

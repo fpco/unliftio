@@ -63,6 +63,7 @@ tests:
     - hspec
     - unliftio
     - QuickCheck
+    - containers
 
 benchmarks:
   conc-bench:
