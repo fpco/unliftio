@@ -19,7 +19,7 @@ instance Exception MyPooledException
 -- | Strip out duplicates. (Taken from rio)
 nubOrd :: Ord a => [a] -> [a]
 nubOrd =
-  loop mempty
+  loop Set.empty
   where
     loop _ [] = []
     loop !s (a:as)
