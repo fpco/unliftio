@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.10
+
+* Add pooling related functions for unliftio
+
 ## 0.2.9.0
 
 * Add the new `Conc` datatype as a more efficient alternative to `Concurrently`

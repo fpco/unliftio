@@ -82,7 +82,7 @@ myWithBinaryFile fp mode inner =
     (\h -> runReaderT (inner h) env)
 ```
 
-I dare you to try to and accomplish this with `MonadIO` and
+I dare you to try and accomplish this with `MonadIO` and
 `liftIO`. It simply can't be done. (If you're looking for the
 technical reason, it's because `IO` appears in
 [negative/argument position](https://www.fpcomplete.com/blog/2016/11/covariance-contravariance)
@@ -174,7 +174,7 @@ We can use `askUnliftIO` to unlift a function:
 ```haskell
 timeout :: MonadUnliftIO m => Int -> m a -> m (Maybe a)
 timeout x y = do
-  u <- askUnliftIO
+  (u :: UnliftIO m) <- askUnliftIO
   liftIO $ System.Timeout.timeout x $ unliftIO u y
 ```
 

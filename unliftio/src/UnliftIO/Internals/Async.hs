@@ -1,4 +1,5 @@
 {-# LANGUAGE CPP                 #-}
+{-# LANGUAGE TupleSections       #-}
 {-# LANGUAGE DeriveDataTypeable  #-}
 {-# LANGUAGE DeriveFunctor       #-}
 {-# LANGUAGE DeriveGeneric       #-}
@@ -10,7 +11,7 @@
 module UnliftIO.Internals.Async where
 
 import           Control.Applicative
-import           Control.Concurrent       (threadDelay)
+import           Control.Concurrent       (threadDelay, getNumCapabilities)
 import qualified Control.Concurrent       as C
 import           Control.Concurrent.Async (Async)
 import qualified Control.Concurrent.Async as A
@@ -20,6 +21,7 @@ import           Control.Monad            (forever, liftM, unless, void, (>=>))
 import           Control.Monad.IO.Unlift
 import           Data.Foldable            (for_, traverse_)
 import           Data.Typeable            (Typeable)
+import           Data.IORef (IORef, readIORef, atomicWriteIORef, newIORef, atomicModifyIORef')
 import qualified UnliftIO.Exception       as UE
 
 -- For the implementation of Conc below, we do not want any of the
@@ -32,14 +34,10 @@ import           GHC.Generics             (Generic)
 #if MIN_VERSION_base(4,9,0)
 import           Data.Semigroup
 #else
-import           Data.Foldable            (Foldable)
 import           Data.Monoid              hiding (Alt)
-import           Data.Traversable         (Traversable)
 #endif
-
-#if MIN_VERSION_base(4,7,0)
-import           Data.Traversable         (traverse)
-#endif
+import           Data.Foldable            (Foldable, toList)
+import           Data.Traversable         (Traversable, for, traverse)
 
 -- | Unlifted 'A.async'.
 --
@@ -835,3 +833,247 @@ mapConcurrently_ f t = withRunInIO $ \run -> A.mapConcurrently_ (run . f) t
 --------------------------------------------------------------------------------
 #endif
 --------------------------------------------------------------------------------
+
+-- | Like 'mapConcurrently' from async, but instead of one thread per
+-- element, it does pooling from a set of threads. This is useful in
+-- scenarios where resource consumption is bounded and for use cases
+-- where too many concurrent tasks aren't allowed.
+--
+-- === __Example usage__
+--
+-- @
+-- import Say
+--
+-- action :: Int -> IO Int
+-- action n = do
+--   tid <- myThreadId
+--   sayString $ show tid
+--   threadDelay (2 * 10^6) -- 2 seconds
+--   return n
+--
+-- main :: IO ()
+-- main = do
+--   yx \<- pooledMapConcurrentlyN 5 (\\x -\> action x) [1..5]
+--   print yx
+-- @
+--
+-- On executing you can see that five threads have been spawned:
+--
+-- @
+-- \$ ./pool
+-- ThreadId 36
+-- ThreadId 38
+-- ThreadId 40
+-- ThreadId 42
+-- ThreadId 44
+-- [1,2,3,4,5]
+-- @
+--
+--
+-- Let's modify the above program such that there are less threads
+-- than the number of items in the list:
+--
+-- @
+-- import Say
+--
+-- action :: Int -> IO Int
+-- action n = do
+--   tid <- myThreadId
+--   sayString $ show tid
+--   threadDelay (2 * 10^6) -- 2 seconds
+--   return n
+--
+-- main :: IO ()
+-- main = do
+--   yx \<- pooledMapConcurrentlyN 3 (\\x -\> action x) [1..5]
+--   print yx
+-- @
+-- On executing you can see that only three threads are active totally:
+--
+-- @
+-- \$ ./pool
+-- ThreadId 35
+-- ThreadId 37
+-- ThreadId 39
+-- ThreadId 35
+-- ThreadId 39
+-- [1,2,3,4,5]
+-- @
+--
+-- @since 0.2.10
+pooledMapConcurrentlyN :: (MonadUnliftIO m, Traversable t)
+                      => Int -- ^ Max. number of threads. Should not be less than 1.
+                      -> (a -> m b) -> t a -> m (t b)
+pooledMapConcurrentlyN numProcs f xs =
+    withRunInIO $ \run -> pooledMapConcurrentlyIO numProcs (run . f) xs
+
+-- | Similar to 'pooledMapConcurrentlyN' but with number of threads
+-- set from 'getNumCapabilities'. Usually this is useful for CPU bound
+-- tasks.
+--
+-- @since 0.2.10
+pooledMapConcurrently :: (MonadUnliftIO m, Traversable t) => (a -> m b) -> t a -> m (t b)
+pooledMapConcurrently f xs = do
+  withRunInIO $ \run -> do
+    numProcs <- getNumCapabilities
+    pooledMapConcurrentlyIO numProcs (run . f) xs
+
+-- | Similar to 'pooledMapConcurrentlyN' but with flipped arguments.
+--
+-- @since 0.2.10
+pooledForConcurrentlyN :: (MonadUnliftIO m, Traversable t)
+                      => Int -- ^ Max. number of threads. Should not be less than 1.
+                      -> t a -> (a -> m b) -> m (t b)
+pooledForConcurrentlyN numProcs = flip (pooledMapConcurrentlyN numProcs)
+
+-- | Similar to 'pooledForConcurrentlyN' but with number of threads
+-- set from 'getNumCapabilities'. Usually this is useful for CPU bound
+-- tasks.
+--
+-- @since 0.2.10
+pooledForConcurrently :: (MonadUnliftIO m, Traversable t) => t a -> (a -> m b) -> m (t b)
+pooledForConcurrently = flip pooledMapConcurrently
+
+pooledMapConcurrentlyIO :: Traversable t => Int -> (a -> IO b) -> t a -> IO (t b)
+pooledMapConcurrentlyIO numProcs f xs =
+    if (numProcs < 1)
+    then error "pooledMapconcurrentlyIO: number of threads < 1"
+    else pooledMapConcurrentlyIO' numProcs f xs
+
+-- | Performs the actual pooling for the tasks. This function will
+-- continue execution until the task queue becomes empty. When one of
+-- the pooled thread finishes it's task, it will pickup the next task
+-- from the queue if an job is available.
+pooledConcurrently
+  :: Int -- ^ Max. number of threads. Should not be less than 1.
+  -> IORef [a] -- ^ Task queue. These are required as inputs for the jobs.
+  -> (a -> IO ()) -- ^ The task which will be run concurrently (but
+                 -- will be pooled properly).
+  -> IO ()
+pooledConcurrently numProcs jobsVar f = do
+  replicateConcurrently_ numProcs $ do
+    let loop = do
+          mbJob :: Maybe a <- atomicModifyIORef' jobsVar $ \x -> case x of
+            [] -> ([], Nothing)
+            var : vars -> (vars, Just var)
+          case mbJob of
+            Nothing -> return ()
+            Just x -> do
+              f x
+              loop
+     in loop
+
+pooledMapConcurrentlyIO' ::
+    Traversable t => Int  -- ^ Max. number of threads. Should not be less than 1.
+                  -> (a -> IO b)
+                  -> t a
+                  -> IO (t b)
+pooledMapConcurrentlyIO' numProcs f xs = do
+  -- prepare one IORef per result...
+  jobs :: t (a, IORef b) <-
+    for xs (\x -> (x, ) <$> newIORef (error "pooledMapConcurrentlyIO': empty IORef"))
+  -- ...put all the inputs in a queue..
+  jobsVar :: IORef [(a, IORef b)] <- newIORef (toList jobs)
+  -- ...run `numProcs` threads in parallel, each
+  -- of them consuming the queue and filling in
+  -- the respective IORefs.
+  pooledConcurrently numProcs jobsVar $ \ (x, outRef) -> f x >>= atomicWriteIORef outRef      -- Read all the IORefs
+  for jobs (\(_, outputRef) -> readIORef outputRef)
+
+pooledMapConcurrentlyIO_' ::
+  Foldable t => Int -> (a -> IO ()) -> t a -> IO ()
+pooledMapConcurrentlyIO_' numProcs f jobs = do
+  jobsVar :: IORef [a] <- newIORef (toList jobs)
+  pooledConcurrently numProcs jobsVar f
+
+pooledMapConcurrentlyIO_ :: Foldable t => Int -> (a -> IO b) -> t a -> IO ()
+pooledMapConcurrentlyIO_ numProcs f xs =
+    if (numProcs < 1)
+    then error "pooledMapconcurrentlyIO_: number of threads < 1"
+    else pooledMapConcurrentlyIO_' numProcs (\x -> f x >> return ()) xs
+
+-- | Like 'pooledMapConcurrentlyN' but with the return value
+-- discarded.
+--
+-- @since 0.2.10
+pooledMapConcurrentlyN_ :: (MonadUnliftIO m, Foldable f)
+                        => Int -- ^ Max. number of threads. Should not be less than 1.
+                        -> (a -> m b) -> f a -> m ()
+pooledMapConcurrentlyN_ numProcs f t =
+  withRunInIO $ \run -> pooledMapConcurrentlyIO_ numProcs (run . f) t
+
+-- | Like 'pooledMapConcurrently' but with the return value discarded.
+--
+-- @since 0.2.10
+pooledMapConcurrently_ :: (MonadUnliftIO m, Foldable f) => (a -> m b) -> f a -> m ()
+pooledMapConcurrently_ f t =
+  withRunInIO $ \run -> do
+    numProcs <- getNumCapabilities
+    pooledMapConcurrentlyIO_ numProcs (run . f) t
+
+-- | Like 'pooledMapConcurrently_' but with flipped arguments.
+--
+-- @since 0.2.10
+pooledForConcurrently_ :: (MonadUnliftIO m, Foldable f) => f a -> (a -> m b) -> m ()
+pooledForConcurrently_ = flip pooledMapConcurrently_
+
+-- | Like 'pooledMapConcurrentlyN_' but with flipped arguments.
+--
+-- @since 0.2.10
+pooledForConcurrentlyN_ :: (MonadUnliftIO m, Foldable t)
+                        => Int -- ^ Max. number of threads. Should not be less than 1.
+                        -> t a -> (a -> m b) -> m ()
+pooledForConcurrentlyN_ numProcs = flip (pooledMapConcurrentlyN_ numProcs)
+
+
+-- | Pooled version of 'replicateConcurrently'. Performs the action in
+-- the pooled threads.
+--
+-- @since 0.2.10
+pooledReplicateConcurrentlyN :: (MonadUnliftIO m)
+                             => Int -- ^ Max. number of threads. Should not be less than 1.
+                             -> Int -- ^ Number of times to perform the action.
+                             -> m a -> m [a]
+pooledReplicateConcurrentlyN numProcs cnt task =
+    if cnt < 1
+    then return []
+    else pooledMapConcurrentlyN numProcs (\_ -> task) [1..cnt]
+
+-- | Similar to 'pooledReplicateConcurrentlyN' but with number of
+-- threads set from 'getNumCapabilities'. Usually this is useful for
+-- CPU bound tasks.
+--
+-- @since 0.2.10
+pooledReplicateConcurrently :: (MonadUnliftIO m)
+                            => Int -- ^ Number of times to perform the action.
+                            -> m a -> m [a]
+pooledReplicateConcurrently cnt task =
+    if cnt < 1
+    then return []
+    else pooledMapConcurrently (\_ -> task) [1..cnt]
+
+-- | Pooled version of 'replicateConcurrently_'. Performs the action in
+-- the pooled threads.
+--
+-- @since 0.2.10
+pooledReplicateConcurrentlyN_ :: (MonadUnliftIO m)
+                              => Int -- ^ Max. number of threads. Should not be less than 1.
+                              -> Int -- ^ Number of times to perform the action.
+                              -> m a -> m ()
+pooledReplicateConcurrentlyN_ numProcs cnt task =
+  if cnt < 1
+  then return ()
+  else pooledMapConcurrentlyN_ numProcs (\_ -> task) [1..cnt]
+
+-- | Similar to 'pooledReplicateConcurrently_' but with number of
+-- threads set from 'getNumCapabilities'. Usually this is useful for
+-- CPU bound tasks.
+--
+-- @since 0.2.10
+pooledReplicateConcurrently_ :: (MonadUnliftIO m)
+                             => Int -- ^ Number of times to perform the action.
+                             -> m a -> m ()
+pooledReplicateConcurrently_ cnt task =
+  if cnt < 1
+  then return ()
+  else pooledMapConcurrently_ (\_ -> task) [1..cnt]

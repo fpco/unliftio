@@ -43,6 +43,20 @@ module UnliftIO.Async
     -- ** Linking
     link, link2,
 
+    -- ** Pooled concurrency
+    pooledMapConcurrentlyN,
+    pooledMapConcurrently,
+    pooledMapConcurrentlyN_,
+    pooledMapConcurrently_,
+    pooledForConcurrentlyN,
+    pooledForConcurrently,
+    pooledForConcurrentlyN_,
+    pooledForConcurrently_,
+    pooledReplicateConcurrentlyN,
+    pooledReplicateConcurrently,
+    pooledReplicateConcurrentlyN_,
+    pooledReplicateConcurrently_,
+
     -- * Convenient utilities
     race, race_,
     concurrently, concurrently_,
