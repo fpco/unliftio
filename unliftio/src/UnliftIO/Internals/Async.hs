@@ -712,7 +712,6 @@ flatten c0 = withRunInIO $ \run -> do
       alt (Pure a) = pure (dlistSingleton $ FlatPure a)
 
   both c0
-{-# SCC flatten #-}
 
 -- | Strict version of Tuple
 data Tuple a b = Tuple !a !b
@@ -962,7 +961,6 @@ runFlat f0 = E.uninterruptibleMask $ \restore -> do
     Right (Left e)  -> E.throwIO e
     -- Everything worked!
     Right (Right x) -> pure x
-{-# SCC runFlat #-}
 {-# INLINEABLE runFlat #-}
 
 --------------------------------------------------------------------------------
