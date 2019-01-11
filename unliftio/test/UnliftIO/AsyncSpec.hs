@@ -46,6 +46,7 @@ spec = do
     runFlat flatValue `shouldReturn` 3
 
   describe "flatten" $ do
+#if MIN_VERSION_base(4,11,0)
     it "keeps applicative structure of a conc tree" $ do
       let
         concValue :: Conc IO Int
@@ -65,6 +66,7 @@ spec = do
             (FlatApp (FlatPure _))) ->
           return ()
         _ -> expectationFailure "Expecting two FlatApply constructors, got something different"
+#endif
 
     -- NOTE: cannot make this test a property test given
     -- Flat and Conc cannot have an Eq property
