@@ -104,8 +104,11 @@ spec = do
         Left (SomeAsyncException err) ->
           displayException err `shouldBe` "having error"
 
-    it "has an Unmasked masking state for given subroutines" $
-      runConc $ conc (getMaskingState `shouldReturn` Unmasked)
+    it "has an Unmasked masking state for given subroutines" $ do
+      -- Using this conc (pure ()) to make sure we are exercising the
+      -- conc branch where forkIOWithUnmask is used, this is an implementation
+      -- detail.
+      runConc $ conc (pure ()) *> conc (getMaskingState `shouldReturn` Unmasked)
 
 -- NOTE: Older versions of GHC have a timeout function that doesn't
 -- work on Windows
