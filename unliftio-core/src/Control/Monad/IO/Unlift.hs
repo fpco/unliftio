@@ -41,13 +41,15 @@ newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
 --
 -- * @unliftIO u (m >>= f) = unliftIO u m >>= unliftIO u . f@
 --
--- The third is a currently nameless law which ensures that the
--- current context is preserved.
+-- Instances of @MonadUnliftIO@ must also satisfy these idempotency laws:
 --
--- * @askUnliftIO >>= (\u -> liftIO (unliftIO u m)) = m@
+-- * @askUnliftIO >>= \\_ -> m = m@
 --
--- If you have a name for this, please submit it in a pull request for
--- great glory.
+-- * @liftIO . unliftIO u = id@
+--
+-- The first law indicates that simply calling @askUnliftIO@ __must__
+-- preserve the current monadic context. The second law maintains the
+-- inverse relationship @unliftIO@ has with @liftIO@.
 --
 -- @since 0.1.0.0
 class MonadIO m => MonadUnliftIO m where
