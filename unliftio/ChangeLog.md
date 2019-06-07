@@ -1,5 +1,10 @@
 # Changelog for unliftio
 
+## 0.2.11
+
+* Deprecate `forkWithUnmask` in favor of the newly added `forkIOWithUnmask` to
+  improve consistency. [https://github.com/fpco/unliftio/issues/44]
+
 ## 0.2.10
 
 * Add pooling related functions for unliftio
