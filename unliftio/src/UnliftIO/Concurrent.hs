@@ -11,7 +11,7 @@ module UnliftIO.Concurrent
     ThreadId,
 
     -- * Basic concurrency operations
-    myThreadId, forkIO, forkWithUnmask, forkFinally, killThread, throwTo,
+    myThreadId, forkIO, forkWithUnmask, forkIOWithUnmask,  forkFinally, killThread, throwTo,
 
     -- ** Threads with affinity
     forkOn, forkOnWithUnmask, getNumCapabilities, setNumCapabilities,
@@ -60,11 +60,20 @@ forkIO m = withRunInIO $ \run -> C.forkIO $ run m
 
 -- | Unlifted version of 'C.forkIOWithUnmask'.
 --
+-- @since 0.2.11
+forkIOWithUnmask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m ()) -> m ThreadId
+forkIOWithUnmask m =
+  withRunInIO $ \run -> C.forkIOWithUnmask $ \unmask -> run $ m $ liftIO . unmask . run
+{-# INLINABLE forkIOWithUnmask #-}
+
+-- | Please use 'forkIOWithUnmask' instead. This function has been deprecated
+-- in release 0.2.11 and will be removed in the next major release.
+--
 -- @since 0.1.1.0
 forkWithUnmask :: MonadUnliftIO m => ((forall a. m a -> m a) -> m ()) -> m ThreadId
-forkWithUnmask m =
-  withRunInIO $ \run -> C.forkIOWithUnmask $ \unmask -> run $ m $ liftIO . unmask . run
+forkWithUnmask = forkIOWithUnmask
 {-# INLINABLE forkWithUnmask #-}
+{-# DEPRECATED forkWithUnmask "forkWithUnmask has been renamed to forkIOWithUnmask" #-}
 
 -- | Unlifted version of 'C.forkFinally'.
 --
