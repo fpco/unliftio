@@ -41,7 +41,7 @@ module UnliftIO.Async
     A.waitBothSTM,
 
     -- ** Linking
-    link, link2,
+    link, linkOnly, link2, link2Only,
 
     -- ** Pooled concurrency
     pooledMapConcurrentlyN,
