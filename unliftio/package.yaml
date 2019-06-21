@@ -14,7 +14,7 @@ extra-source-files:
 
 dependencies:
   - base >= 4.7 && < 5
-  - async > 2.1.1
+  - async >= 2.2.2
   - deepseq
   - directory
   - filepath

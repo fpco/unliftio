@@ -1,5 +1,12 @@
 # Changelog for unliftio
 
+## Unreleased
+
+### Before release: fix `@since FIXME` annotations
+
+* Add `UnliftIO.Async.linkOnly`, `UnliftIO.Async.link2Only`
+* Bump `async` lower bound to `>= 2.2.2`
+
 ## 0.2.11
 
 * Deprecate `forkWithUnmask` in favor of the newly added `forkIOWithUnmask` to

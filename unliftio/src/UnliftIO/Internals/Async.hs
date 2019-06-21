@@ -219,11 +219,23 @@ waitBoth a b = liftIO (A.waitBoth a b)
 link :: MonadIO m => Async a -> m ()
 link = liftIO . A.link
 
+-- | Lifted 'A.linkOnly'.
+--
+-- @since FIXME
+linkOnly :: MonadIO m => (SomeException -> Bool) -> Async a -> m ()
+linkOnly a b = liftIO (A.linkOnly a b)
+
 -- | Lifted 'A.link2'.
 --
 -- @since 0.1.0.0
 link2 :: MonadIO m => Async a -> Async b -> m ()
 link2 a b = liftIO (A.link2 a b)
+
+-- | Lifted 'A.link2Only'.
+--
+-- @since FIXME
+link2Only :: MonadIO m => (SomeException -> Bool) -> Async a -> Async b -> m ()
+link2Only a b c = liftIO (A.link2Only a b c)
 
 -- | Unlifted 'A.race'.
 --
