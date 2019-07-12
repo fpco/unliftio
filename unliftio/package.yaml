@@ -1,5 +1,5 @@
 name:                unliftio
-version:             0.2.11
+version:             0.2.12
 synopsis:            The MonadUnliftIO typeclass for unlifting monads to IO (batteries included)
 description:         Please see the documentation and README at <https://www.stackage.org/package/unliftio>
 homepage:            https://github.com/fpco/unliftio/tree/master/unliftio#readme
@@ -13,8 +13,9 @@ extra-source-files:
 - ChangeLog.md
 
 dependencies:
-  - base >= 4.7 && < 5
+  - base >= 4.8 && < 5
   - async > 2.1.1
+  - bytestring
   - deepseq
   - directory
   - filepath
@@ -45,14 +46,22 @@ library:
       - nats
   - condition: os(darwin)
     then:
-      c-sources: cbits/time-osx.c
+      c-sources:
+        - cbits/time-osx.c
+        - cbits/file-posix.c
+      other-modules:
+        - UnliftIO.IO.File.Posix
     else:
       when:
       - condition: os(windows)
         then:
           c-sources: cbits/time-windows.c
         else:
-          c-sources: cbits/time-posix.c
+          c-sources:
+            - cbits/file-posix.c
+            - cbits/time-posix.c
+          other-modules:
+            - UnliftIO.IO.File.Posix
 
 tests:
   unliftio-spec:
