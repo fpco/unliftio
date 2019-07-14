@@ -9,7 +9,7 @@
 --
 -- This module works best when your cleanup functions adhere to certain
 -- expectations around exception safety and interruptible actions.
--- For more details, see [this exception safety tutorial](https://haskell-lang.org/tutorial/exception-safety).
+-- For more details, see [this exception safety tutorial](https://haskell.fpcomplete.com/tutorial/exceptions).
 module UnliftIO.Exception
   ( -- * Throwing
     throwIO
