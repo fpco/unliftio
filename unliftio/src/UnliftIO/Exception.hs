@@ -533,7 +533,7 @@ data StringException = StringException String CallStack
 -- | @since 0.1.0.0
 instance Show StringException where
     show (StringException s cs) = concat
-        $ "Control.Exception.Safe.throwString called with:\n\n"
+        $ "UnliftIO.Exception.throwString called with:\n\n"
         : s
         : "\nCalled from:\n"
         : map go (getCallStack cs)
@@ -551,7 +551,7 @@ data StringException = StringException String ()
 
 -- | @since 0.1.0.0
 instance Show StringException where
-    show (StringException s _) = "Control.Exception.Safe.throwString called with:\n\n" ++ s
+    show (StringException s _) = "UnliftIO.Exception.throwString called with:\n\n" ++ s
 #endif
 
 -- | @since 0.1.0.0
