@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.12.1
+
+* Minor doc improvements
+
 ## 0.2.12
 
 * Dropped support for ghc-7.8
