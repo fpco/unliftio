@@ -1,3 +1,9 @@
+# ChangeLog for unliftio-core
+
+## 0.2.0.0
+
+* Move `askUnliftIO` out of class [#55](https://github.com/fpco/unliftio/issues/55)
+
 ## 0.1.2.0
 
 * Add `wrappedWithRunInIO`.

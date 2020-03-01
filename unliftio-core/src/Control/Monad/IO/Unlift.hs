@@ -4,6 +4,7 @@
 module Control.Monad.IO.Unlift
   ( MonadUnliftIO (..)
   , UnliftIO (..)
+  , askUnliftIO
   , askRunInIO
   , withUnliftIO
   , toIO
@@ -51,20 +52,6 @@ newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
 --
 -- @since 0.1.0.0
 class MonadIO m => MonadUnliftIO m where
-  {-# MINIMAL askUnliftIO | withRunInIO #-}
-  -- | Capture the current monadic context, providing the ability to
-  -- run monadic actions in 'IO'.
-  --
-  -- See 'UnliftIO' for an explanation of why we need a helper
-  -- datatype here.
-  --
-  -- @since 0.1.0.0
-  askUnliftIO :: m (UnliftIO m)
-  askUnliftIO = withRunInIO (\run -> return (UnliftIO run))
-  {-# INLINE askUnliftIO #-}
-  -- Would be better, but GHC hates us
-  -- askUnliftIO :: m (forall a. m a -> IO a)
-
   -- | Convenience function for capturing the monadic context and running an 'IO'
   -- action with a runner function. The runner function is used to run a monadic
   -- action @m@ in @IO@.
@@ -74,15 +61,9 @@ class MonadIO m => MonadUnliftIO m where
   withRunInIO :: ((forall a. m a -> IO a) -> IO b) -> m b
   withRunInIO inner = askUnliftIO >>= \u -> liftIO (inner (unliftIO u))
 instance MonadUnliftIO IO where
-  {-# INLINE askUnliftIO #-}
-  askUnliftIO = return (UnliftIO id)
   {-# INLINE withRunInIO #-}
   withRunInIO inner = inner id
 instance MonadUnliftIO m => MonadUnliftIO (ReaderT r m) where
-  {-# INLINE askUnliftIO #-}
-  askUnliftIO = ReaderT $ \r ->
-                withUnliftIO $ \u ->
-                return (UnliftIO (unliftIO u . flip runReaderT r))
   {-# INLINE withRunInIO #-}
   withRunInIO inner =
     ReaderT $ \r ->
@@ -90,15 +71,29 @@ instance MonadUnliftIO m => MonadUnliftIO (ReaderT r m) where
     inner (run . flip runReaderT r)
 
 instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
-  {-# INLINE askUnliftIO #-}
-  askUnliftIO = IdentityT $
-                withUnliftIO $ \u ->
-                return (UnliftIO (unliftIO u . runIdentityT))
   {-# INLINE withRunInIO #-}
   withRunInIO inner =
     IdentityT $
     withRunInIO $ \run ->
     inner (run . runIdentityT)
+
+-- | Capture the current monadic context, providing the ability to
+-- run monadic actions in 'IO'.
+--
+-- See 'UnliftIO' for an explanation of why we need a helper
+-- datatype here.
+--
+-- Prior to version 0.2.0.0 of this library, this was a method in the
+-- 'MonadUnliftIO' type class. It was moved out due to
+-- <https://github.com/fpco/unliftio/issues/55>.
+--
+-- @since 0.1.0.0
+askUnliftIO :: MonadUnliftIO m => m (UnliftIO m)
+askUnliftIO = withRunInIO (\run -> return (UnliftIO run))
+{-# INLINE askUnliftIO #-}
+-- Would be better, but GHC hates us
+-- askUnliftIO :: m (forall a. m a -> IO a)
+
 
 -- | Same as 'askUnliftIO', but returns a monomorphic function
 -- instead of a polymorphic newtype wrapper. If you only need to apply
