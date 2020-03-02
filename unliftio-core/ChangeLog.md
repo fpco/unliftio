@@ -1,5 +1,9 @@
 # ChangeLog for unliftio-core
 
+## 0.2.0.1
+
+* Remove faulty default implementation of `withRunInIO` [#56](https://github.com/fpco/unliftio/issues/56)
+
 ## 0.2.0.0
 
 * Move `askUnliftIO` out of class [#55](https://github.com/fpco/unliftio/issues/55)

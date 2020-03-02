@@ -57,9 +57,7 @@ class MonadIO m => MonadUnliftIO m where
   -- action @m@ in @IO@.
   --
   -- @since 0.1.0.0
-  {-# INLINE withRunInIO #-}
   withRunInIO :: ((forall a. m a -> IO a) -> IO b) -> m b
-  withRunInIO inner = askUnliftIO >>= \u -> liftIO (inner (unliftIO u))
 instance MonadUnliftIO IO where
   {-# INLINE withRunInIO #-}
   withRunInIO inner = inner id
