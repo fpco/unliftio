@@ -1,4 +1,0 @@
-resolver: lts-12.9
-packages:
-- unliftio
-- unliftio-core

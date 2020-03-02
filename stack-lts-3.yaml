@@ -1,6 +1,0 @@
-resolver: lts-3.22
-packages:
-- unliftio
-- unliftio-core
-extra-deps:
-- async-2.2.1@rev:0

@@ -1,4 +1,0 @@
-resolver: lts-6.35
-packages:
-- unliftio
-- unliftio-core

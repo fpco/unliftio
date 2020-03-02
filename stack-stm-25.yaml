@@ -1,7 +1,0 @@
-resolver: lts-12.9
-packages:
-- unliftio
-- unliftio-core
-extra-deps:
-- stm-2.5.0.0@rev:0
-- async-2.2.1@rev:1

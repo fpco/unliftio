@@ -1,7 +1,6 @@
 # unliftio
 
-[![Travis Build Status](https://travis-ci.org/fpco/unliftio.svg?branch=master)](https://travis-ci.org/fpco/unliftio)
-[![AppVeyor Build status](https://ci.appveyor.com/api/projects/status/sprg5nlyh0codcpv?svg=true)](https://ci.appveyor.com/project/snoyberg/unliftio)
+[![Build Status](https://dev.azure.com/fpco/unliftio/_apis/build/status/fpco.unliftio?branchName=master)](https://dev.azure.com/fpco/unliftio/_build/latest?definitionId=3&branchName=master)
 
 
 Provides the core `MonadUnliftIO` typeclass, a number of common
