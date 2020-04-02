@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.13
+
+* Add `UnliftIO.STM.orElse`
+
 ## 0.2.12.1
 
 * Minor doc improvements
