@@ -9,6 +9,7 @@ module UnliftIO.IO.File.Posix
   , withBinaryFileDurableAtomic
   , withBinaryFileAtomic
   , ensureFileDurable
+  , renameFileDurable
   )
   where
 
@@ -39,6 +40,7 @@ import System.IO.Error (ioeGetErrorType, isAlreadyExistsError,
 import qualified System.Posix.Files as Posix
 import System.Posix.Internals (CFilePath, c_close, c_safe_open, withFilePath)
 import System.Posix.Types (CMode(..), Fd(..), FileMode)
+import UnliftIO.Directory (renameFile)
 import UnliftIO.Exception
 import UnliftIO.IO
 import UnliftIO.MVar
@@ -580,3 +582,13 @@ withBinaryFileAtomic filePath iomode action =
       liftIO $ atomicTempFileRename Nothing mFileMode eTmpFile filePath
       pure res
 
+
+-- | See `renameFileDurable`
+renameFileDurable ::
+     MonadIO m => FilePath -> FilePath -> m ()
+renameFileDurable oldName newName =
+     liftIO $ withDirectory (takeDirectory oldName) $ \oldDirFd ->
+                withDirectory (takeDirectory newName) $ \newDirFd -> do
+                  renameFile oldName newName
+                  fsyncDirectoryFd "renameFileDurable" newDirFd
+                  fsyncDirectoryFd "renameFileDurable" oldDirFd
