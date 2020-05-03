@@ -82,12 +82,14 @@ module UnliftIO.IO.File
   , withBinaryFileDurable
   , withBinaryFileDurableAtomic
   , ensureFileDurable
+  , renameFileDurable
   )
   where
 
 import Data.ByteString as B (ByteString, writeFile)
 import Control.Monad.IO.Unlift
 import UnliftIO.IO (Handle, IOMode(..), withBinaryFile)
+import UnliftIO.Directory (renameFile)
 
 #if WINDOWS
 
@@ -101,6 +103,8 @@ writeBinaryFileAtomic = writeBinaryFile
 withBinaryFileDurable = withBinaryFile
 withBinaryFileDurableAtomic = withBinaryFile
 withBinaryFileAtomic = withBinaryFile
+
+renameFileDurable = renameFile
 
 #else
 
@@ -119,7 +123,29 @@ writeBinaryFileAtomic fp bytes =
 withBinaryFileDurable = Posix.withBinaryFileDurable
 withBinaryFileDurableAtomic = Posix.withBinaryFileDurableAtomic
 withBinaryFileAtomic = Posix.withBinaryFileAtomic
+
+renameFileDurable = Posix.renameFileDurable
 #endif
+
+-- | When a file is renamed, it is necessary to execute @fsync()@ on the
+-- directory that contains the file now and afterwards on the directory where
+-- the file was before, so that the rename is durable.
+--
+-- Remark: This is also atomic if both locations of the file are on the same
+-- filesystem. However, it could happen that the operation leads to data loss,
+-- if a crash happens after the rename and before the first fsync finishes. This
+-- is because on an async filesystem the write of the old directory might
+-- already written to disk and the change on the new directory is not. It the
+-- function call returns, the change is durable. Nevertheless, this will not
+-- happen on filesystems using journaling, that is, allmost all modern filesystems.
+--
+-- === Cross-Platform support 
+--
+-- This function is a noop on Windows platforms.
+--
+-- @since 0.2.14
+renameFileDurable :: MonadIO m => FilePath -> FilePath -> m ()
+-- Implementation is at the top of the module
 
 -- | After a file is closed, this function opens it again and executes @fsync()@
 -- internally on both the file and the directory that contains it. Note that this function

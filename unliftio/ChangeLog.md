@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.14
+
+* Add `UnliftIO.IO.File.renameFileDurable`
+
 ## 0.2.13
 
 * Add `UnliftIO.STM.orElse`
