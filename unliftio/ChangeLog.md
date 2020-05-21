@@ -3,6 +3,7 @@
 ## 0.2.13
 
 * Add `UnliftIO.STM.orElse`
+* Re-export all of `SeekMode`
 
 ## 0.2.12.1
 

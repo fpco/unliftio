@@ -18,7 +18,7 @@ module UnliftIO.IO
   , hSetBuffering
   , hGetBuffering
   , hSeek
-  , IO.SeekMode
+  , IO.SeekMode (..)
   , hTell
   , hIsOpen
   , hIsClosed
