@@ -44,11 +44,11 @@ newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
 --
 -- Instances of @MonadUnliftIO@ must also satisfy the idempotency law:
 --
--- * @askUnliftIO >>= \\u -> (liftIO . unliftIO u) m = m@
+-- * @withRunInIO (\\run -> (liftIO . run) m) = m@
 --
--- This law showcases two properties. First, 'askUnliftIO' doesn't change
--- the monadic context, and second, @liftIO . unliftIO u@ is equivalent to
--- @id@ IF called in the same monadic context as 'askUnliftIO'.
+-- This law showcases two properties. First, 'withRunInIO' doesn't change
+-- the monadic context, and second, @liftIO . run@ is equivalent to
+-- @id@ IF called in the same monadic context as 'withRunInIO'.
 --
 -- @since 0.1.0.0
 class MonadIO m => MonadUnliftIO m where
