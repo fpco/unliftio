@@ -131,31 +131,33 @@ simply add the `MonadUnliftIO` constraint and then use the
 pre-unlifted versions of functions (like
 `UnliftIO.Exception.catch`). But ultimately, you'll probably want to
 use the typeclass directly. The type class has only one method --
-`askUnliftIO`:
+`withRunInIO`:
 
 ```haskell
-newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
-
 class MonadIO m => MonadUnliftIO m where
-  askUnliftIO :: m (UnliftIO m)
+  withRunInIO :: ((forall a. m a -> IO a) -> IO b) -> m b
 ```
 
-`askUnliftIO` gives us a function to run arbitrary computation in `m`
+`withRunInIO` provides a function to run arbitrary computations in `m`
 in `IO`. Thus the "unlift": it's like `liftIO`, but the other way around.
 
 Here are some sample typeclass instances:
 
 ```haskell
 instance MonadUnliftIO IO where
-  askUnliftIO = return (UnliftIO id)
-instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
-  askUnliftIO = IdentityT $
-                withUnliftIO $ \u ->
-                return (UnliftIO (unliftIO u . runIdentityT))
+  withRunInIO inner = inner id
+
 instance MonadUnliftIO m => MonadUnliftIO (ReaderT r m) where
-  askUnliftIO = ReaderT $ \r ->
-                withUnliftIO $ \u ->
-                return (UnliftIO (unliftIO u . flip runReaderT r))
+  withRunInIO inner =
+    ReaderT $ \r ->
+    withRunInIO $ \run ->
+    inner (run . flip runReaderT r)
+
+instance MonadUnliftIO m => MonadUnliftIO (IdentityT m) where
+  withRunInIO inner =
+    IdentityT $
+    withRunInIO $ \run ->
+    inner (run . runIdentityT)
 ```
 
 Note that:
@@ -163,21 +165,12 @@ Note that:
 * The `IO` instance does not actually do any lifting or unlifting, and
   therefore it can use `id`
 * `IdentityT` is essentially just wrapping/unwrapping its data
-  constructor, and then recursively calling `withUnliftIO` on the
+  constructor, and then recursively calling `withRunInIO` on the
   underlying monad.
 * `ReaderT` is just like `IdentityT`, but it captures the reader
   environment when starting.
 
-We can use `askUnliftIO` to unlift a function:
-
-```haskell
-timeout :: MonadUnliftIO m => Int -> m a -> m (Maybe a)
-timeout x y = do
-  (u :: UnliftIO m) <- askUnliftIO
-  liftIO $ System.Timeout.timeout x $ unliftIO u y
-```
-
-or more concisely using `withRunInIO`:
+We can use `withRunInIO` to unlift a function:
 
 ```haskell
 timeout :: MonadUnliftIO m => Int -> m a -> m (Maybe a)
