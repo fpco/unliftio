@@ -383,8 +383,8 @@ mapConcurrently_ f t = withRunInIO $ \run -> runFlat $ traverse_
 
 -- | A more efficient alternative to 'Concurrently', which reduces the
 -- number of threads that need to be forked. For more information, see
--- @FIXME link to blog post@. This is provided as a separate type to
--- @Concurrently@ as it has a slightly different API.
+-- [this blog post](https://www.fpcomplete.com/blog/transformations-on-applicative-concurrent-computations/).
+-- This is provided as a separate type to @Concurrently@ as it has a slightly different API.
 --
 -- Use the 'conc' function to construct values of type 'Conc', and
 -- 'runConc' to execute the composed actions. You can use the
