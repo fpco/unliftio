@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.13.1
+
+* Improve `UnliftIO.Exception` documentation
+
 ## 0.2.13
 
 * Add `UnliftIO.STM.orElse`

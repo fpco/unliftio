@@ -9,7 +9,7 @@
 --
 -- This module works best when your cleanup functions adhere to certain
 -- expectations around exception safety and interruptible actions.
--- For more details, see [this exception safety tutorial](https://haskell.fpcomplete.com/tutorial/exceptions).
+-- For more details, see [this exception safety tutorial](https://www.fpcomplete.com/haskell/tutorial/exceptions/).
 module UnliftIO.Exception
   ( -- * Throwing
     throwIO
@@ -101,10 +101,17 @@ import GHC.Stack (prettySrcLoc)
 import GHC.Stack.Types (HasCallStack, CallStack, getCallStack)
 #endif
 
--- | Unlifted 'EUnsafe.catch', but will not catch asynchronous exceptions.
+-- | Catch a synchronous (but not asynchronous) exception and recover from it.
+--
+-- This is parameterized on the exception type. To catch all synchronous exceptions,
+-- use 'catchAny'.
 --
 -- @since 0.1.0.0
-catch :: (MonadUnliftIO m, Exception e) => m a -> (e -> m a) -> m a
+catch
+  :: (MonadUnliftIO m, Exception e)
+  => m a -- ^ action
+  -> (e -> m a) -- ^ handler
+  -> m a
 catch f g = withRunInIO $ \run -> run f `EUnsafe.catch` \e ->
   if isSyncException e
     then run (g e)
@@ -118,7 +125,7 @@ catch f g = withRunInIO $ \run -> run f `EUnsafe.catch` \e ->
 catchIO :: MonadUnliftIO m => m a -> (IOException -> m a) -> m a
 catchIO = catch
 
--- | 'catch' specialized to catch all synchronous exception.
+-- | 'catch' specialized to catch all synchronous exceptions.
 --
 -- @since 0.1.0.0
 catchAny :: MonadUnliftIO m => m a -> (SomeException -> m a) -> m a
@@ -182,7 +189,10 @@ handleAnyDeep = flip catchAnyDeep
 handleJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> (b -> m a) -> m a -> m a
 handleJust f = flip (catchJust f)
 
--- | Unlifted 'EUnsafe.try', but will not catch asynchronous exceptions.
+-- | Run the given action and catch any synchronous exceptions as a 'Left' value.
+--
+-- This is parameterized on the exception type. To catch all synchronous exceptions,
+-- use 'tryAny'.
 --
 -- @since 0.1.0.0
 try :: (MonadUnliftIO m, Exception e) => m a -> m (Either e a)
@@ -235,7 +245,7 @@ pureTry a = unsafePerformIO $ (return $! Right $! a) `catchAny` (return . Left)
 pureTryDeep :: NFData a => a -> Either SomeException a
 pureTryDeep = unsafePerformIO . tryAnyDeep . return
 
--- | Generalized version of 'EUnsafe.Handler'.
+-- | A helper data type for usage with 'catches' and similar functions.
 --
 -- @since 0.1.0.0
 data Handler m a = forall e . Exception e => Handler (e -> m a)
@@ -248,8 +258,10 @@ catchesHandler handlers e = foldr tryHandler (liftIO (EUnsafe.throwIO e)) handle
                 Just e' -> handler e'
                 Nothing -> res
 
--- | Same as upstream 'EUnsafe.catches', but will not catch
--- asynchronous exceptions.
+-- | Similar to 'catch', but provides multiple different handler functions.
+--
+-- For more information on motivation, see @base@'s 'EUnsafe.catches'. Note that,
+-- unlike that function, this function will not catch asynchronous exceptions.
 --
 -- @since 0.1.0.0
 catches :: MonadUnliftIO m => m a -> [Handler m a] -> m a
@@ -274,7 +286,20 @@ evaluate = liftIO . EUnsafe.evaluate
 evaluateDeep :: (MonadIO m, NFData a) => a -> m a
 evaluateDeep = (evaluate $!!)
 
--- | Async safe version of 'EUnsafe.bracket'.
+-- | Allocate and clean up a resource safely.
+--
+-- For more information on motivation and usage of this function, see @base@'s
+-- 'EUnsafe.bracket'. This function has two differences from the one in @base@.
+-- The first, and more obvious, is that it works on any @MonadUnliftIO@
+-- instance, not just @IO@.
+--
+-- The more subtle difference is that this function will use uninterruptible
+-- masking for its cleanup handler. This is a subtle distinction, but at a
+-- high level, means that resource cleanup has more guarantees to complete.
+-- This comes at the cost that an incorrectly written cleanup function
+-- cannot be interrupted.
+--
+-- For more information, please see <https://github.com/fpco/safe-exceptions/issues/3>.
 --
 -- @since 0.1.0.0
 bracket :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
@@ -295,13 +320,15 @@ bracket before after thing = withRunInIO $ \run -> EUnsafe.mask $ \restore -> do
       _ <- EUnsafe.uninterruptibleMask_ $ run $ after x
       return y
 
--- | Async safe version of 'EUnsafe.bracket_'.
+-- | Same as 'bracket', but does not pass the acquired resource to cleanup and use functions.
+--
+-- For more information, see @base@'s 'EUnsafe.bracket_'.
 --
 -- @since 0.1.0.0
 bracket_ :: MonadUnliftIO m => m a -> m b -> m c -> m c
 bracket_ before after thing = bracket before (const after) (const thing)
 
--- | Async safe version of 'EUnsafe.bracketOnError'.
+-- | Same as 'bracket', but only perform the cleanup if an exception is thrown.
 --
 -- @since 0.1.0.0
 bracketOnError :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
@@ -323,10 +350,17 @@ bracketOnError before after thing = withRunInIO $ \run -> EUnsafe.mask $ \restor
 bracketOnError_ :: MonadUnliftIO m => m a -> m b -> m c -> m c
 bracketOnError_ before after thing = bracketOnError before (const after) (const thing)
 
--- | Async safe version of 'EUnsafe.finally'.
+-- | Perform @thing@, guaranteeing that @after@ will run after, even if an exception occurs.
+--
+-- Same interruptible vs uninterrupible points apply as with 'bracket'. See @base@'s
+-- 'EUnsafe.finally' for more information.
 --
 -- @since 0.1.0.0
-finally :: MonadUnliftIO m => m a -> m b -> m a
+finally
+  :: MonadUnliftIO m
+  => m a -- ^ thing
+  -> m b -- ^ after
+  -> m a
 finally thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \restore -> do
   res1 <- EUnsafe.try $ restore $ run thing
   case res1 of
@@ -353,13 +387,16 @@ withException thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ 
             EUnsafe.throwIO e1
         Right x -> return x
 
--- | Async safe version of 'EUnsafe.onException'.
+-- | Like 'finally', but only call @after@ if an exception occurs.
 --
 -- @since 0.1.0.0
 onException :: MonadUnliftIO m => m a -> m b -> m a
 onException thing after = withException thing (\(_ :: SomeException) -> after)
 
 -- | Synchronously throw the given exception.
+--
+-- Note that, if you provide an exception value which is of an asynchronous
+-- type, it will be wrapped up in 'SyncExceptionWrapper'. See 'toSyncException'.
 --
 -- @since 0.1.0.0
 throwIO :: (MonadIO m, Exception e) => e -> m a
