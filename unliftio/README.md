@@ -1,6 +1,6 @@
 # unliftio
 
-[![Build Status](https://dev.azure.com/fpco/unliftio/_apis/build/status/fpco.unliftio?branchName=master)](https://dev.azure.com/fpco/unliftio/_build/latest?definitionId=3&branchName=master)
+![Tests](https://github.com/fpco/unliftio/workflows/Tests/badge.svg)
 
 
 Provides the core `MonadUnliftIO` typeclass, a number of common
