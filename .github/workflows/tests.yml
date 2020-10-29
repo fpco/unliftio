@@ -20,13 +20,14 @@ jobs:
       - name: Clone project
         uses: actions/checkout@v2
 
-      - name: Cache dependencies
-        uses: actions/cache@v1
-        with:
-          path: ~/.stack
-          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
-          restore-keys: |
-            ${{ runner.os }}-${{ matrix.resolver }}-
+# Getting weird OS X errors...
+#      - name: Cache dependencies
+#        uses: actions/cache@v1
+#        with:
+#          path: ~/.stack
+#          key: ${{ runner.os }}-${{ matrix.resolver }}-${{ hashFiles('stack.yaml') }}
+#          restore-keys: |
+#            ${{ runner.os }}-${{ matrix.resolver }}-
 
       - name: Build and run tests
         shell: bash
