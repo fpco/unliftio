@@ -1,5 +1,10 @@
 # Changelog for unliftio
 
+## 0.2.14
+
+* Add `UnliftIO.QSem`
+* Add `UnliftIO.QSemN`
+
 ## 0.2.13.1
 
 * Improve `UnliftIO.Exception` documentation

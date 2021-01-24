@@ -9,6 +9,8 @@ module UnliftIO
   , module UnliftIO.IORef
   , module UnliftIO.Memoize
   , module UnliftIO.MVar
+  , module UnliftIO.QSem
+  , module UnliftIO.QSemN
   , module UnliftIO.STM
   , module UnliftIO.Temporary
   , module UnliftIO.Timeout
@@ -22,6 +24,8 @@ import UnliftIO.IO
 import UnliftIO.IORef
 import UnliftIO.Memoize
 import UnliftIO.MVar
+import UnliftIO.QSem
+import UnliftIO.QSemN
 import UnliftIO.STM
 import UnliftIO.Temporary
 import UnliftIO.Timeout
