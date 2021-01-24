@@ -4,10 +4,10 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c11215b81aa0898968a1dbf5189319f0bd07fa70861b5812ac34043c9f118ebb
+-- hash: e737146da57bc35659bcdf122bb96b8fd76e43a33e39f3ebf00fac260c68bb2b
 
 name:           unliftio
-version:        0.2.13.1
+version:        0.2.14
 synopsis:       The MonadUnliftIO typeclass for unlifting monads to IO (batteries included)
 description:    Please see the documentation and README at <https://www.stackage.org/package/unliftio>
 category:       Control
@@ -39,6 +39,8 @@ library
       UnliftIO.Memoize
       UnliftIO.MVar
       UnliftIO.Process
+      UnliftIO.QSem
+      UnliftIO.QSemN
       UnliftIO.STM
       UnliftIO.Temporary
       UnliftIO.Timeout
