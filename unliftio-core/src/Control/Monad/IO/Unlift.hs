@@ -131,12 +131,13 @@ underlying transformer.
 
 > newtype AppT m a = AppT { unAppT :: ReaderT Int (ResourceT m) a }
 >   deriving (Functor, Applicative, Monad, MonadIO)
->   -- Unfortunately, deriving MonadUnliftIO does not work.
 >
+> -- Same as `deriving newtype (MonadUnliftIO)`
 > instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
 >   withRunInIO = wrappedWithRunInIO AppT unAppT
 -}
 {-# INLINE wrappedWithRunInIO #-}
+{-# DEPRECATED wrappedWithRunInIO "You can derive MonadUnliftIO for newtypes in unliftio-core 0.2.0.0 and later" #-}
 wrappedWithRunInIO :: MonadUnliftIO n
                    => (n b -> m b)
                    -- ^ The wrapper, for instance @IdentityT@.
