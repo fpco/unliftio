@@ -126,6 +126,9 @@ toIO m = withRunInIO $ \run -> return $ run m
 Useful for the common case where you want to simply delegate to the
 underlying transformer.
 
+Note: You can derive 'MonadUnliftIO' for newtypes without this helper function
+in @unliftio-core@ 0.2.0.0 and later.
+
 @since 0.1.2.0
 ==== __Example__
 
@@ -137,7 +140,6 @@ underlying transformer.
 >   withRunInIO = wrappedWithRunInIO AppT unAppT
 -}
 {-# INLINE wrappedWithRunInIO #-}
-{-# DEPRECATED wrappedWithRunInIO "You can derive MonadUnliftIO for newtypes in unliftio-core 0.2.0.0 and later" #-}
 wrappedWithRunInIO :: MonadUnliftIO n
                    => (n b -> m b)
                    -- ^ The wrapper, for instance @IdentityT@.
