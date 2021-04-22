@@ -126,13 +126,16 @@ toIO m = withRunInIO $ \run -> return $ run m
 Useful for the common case where you want to simply delegate to the
 underlying transformer.
 
+Note: You can derive 'MonadUnliftIO' for newtypes without this helper function
+in @unliftio-core@ 0.2.0.0 and later.
+
 @since 0.1.2.0
 ==== __Example__
 
 > newtype AppT m a = AppT { unAppT :: ReaderT Int (ResourceT m) a }
 >   deriving (Functor, Applicative, Monad, MonadIO)
->   -- Unfortunately, deriving MonadUnliftIO does not work.
 >
+> -- Same as `deriving newtype (MonadUnliftIO)`
 > instance MonadUnliftIO m => MonadUnliftIO (AppT m) where
 >   withRunInIO = wrappedWithRunInIO AppT unAppT
 -}
