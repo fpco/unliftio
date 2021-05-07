@@ -4,7 +4,7 @@ cabal-version: 1.12
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: 6f6fd7f95df930571d7c917424b5f1163381bfa922c0385872be54ccb48991cc
+-- hash: 40490d0fe7fc6f0268ccf74fe2c9a80b56510ef69ed38c5eb7778722dd904e3e
 
 name:           unliftio
 version:        0.2.15
@@ -92,6 +92,7 @@ test-suite unliftio-spec
   main-is: Spec.hs
   other-modules:
       UnliftIO.AsyncSpec
+      UnliftIO.DirectorySpec
       UnliftIO.ExceptionSpec
       UnliftIO.IO.FileSpec
       UnliftIO.IOSpec
