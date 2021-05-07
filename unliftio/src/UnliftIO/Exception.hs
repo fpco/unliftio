@@ -21,6 +21,8 @@ module UnliftIO.Exception
   , fromEither
   , fromEitherIO
   , fromEitherM
+  , mapExceptionM
+
     -- * Catching (with recovery)
   , catch
   , catchIO
@@ -635,3 +637,10 @@ fromEitherIO = fromEitherM . liftIO
 -- @since 0.1.0.0
 fromEitherM :: (Exception e, MonadIO m) => m (Either e a) -> m a
 fromEitherM = (>>= fromEither)
+
+-- | Same as 'Control.Exception.mapException', except works in
+-- a monadic context.
+--
+-- @since 0.2.15
+mapExceptionM :: (Exception e1, Exception e2, MonadUnliftIO m) => (e1 -> e2) -> m a -> m a
+mapExceptionM f = handle (throwIO . f)

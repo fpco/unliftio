@@ -1,5 +1,11 @@
 # Changelog for unliftio
 
+## 0.2.15
+
+* Updated documentation mentioning that `MonadUnliftIO` may be derived using
+  the `newtype` strategy [#72](https://github.com/fpco/unliftio/pull/72)
+* Add `mapExceptionM` [#75](https://github.com/fpco/unliftio/pull/75)
+
 ## 0.2.14
 
 * Add `UnliftIO.QSem`
