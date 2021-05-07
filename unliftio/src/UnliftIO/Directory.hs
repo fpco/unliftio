@@ -7,6 +7,7 @@ module UnliftIO.Directory (
     -- * Actions on directories
     createDirectory
   , createDirectoryIfMissing
+  , createFileLink
   , removeDirectory
   , removeDirectoryRecursive
 #if MIN_VERSION_directory(1,2,7)
@@ -148,6 +149,18 @@ createDirectory = liftIO . D.createDirectory
 createDirectoryIfMissing :: MonadIO m => Bool -> FilePath -> m ()
 createDirectoryIfMissing create_parents path0 =
   liftIO (D.createDirectoryIfMissing create_parents path0)
+
+-- | Lifted 'D.createFileLink'.
+--
+-- @since 0.2.6.0
+{-# INLINE createFileLink #-}
+createFileLink
+  :: MonadIO m
+  => FilePath  -- ^ path to the target file
+  -> FilePath  -- ^ path of the link to be created
+  -> m ()
+createFileLink targetPath linkPath =
+  liftIO (D.createFileLink targetPath linkPath)
 
 -- | Lifted 'D.removeDirectory'.
 --
