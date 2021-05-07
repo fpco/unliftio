@@ -11,6 +11,8 @@ int unliftio_o_tmpfile( void )
 #endif
 }
 
+#if OLD_GLIBC
+#else
 int unliftio_at_fdcwd( void )
 {
   return AT_FDCWD;
@@ -20,7 +22,7 @@ int unliftio_at_symlink_follow( void )
 {
   return AT_SYMLINK_FOLLOW;
 }
-
+#endif
 
 int unliftio_s_irusr( void )
 {

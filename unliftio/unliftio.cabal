@@ -22,6 +22,11 @@ extra-source-files:
     README.md
     ChangeLog.md
 
+flag old-glibc
+  description: compile with post-2016 glibc, allowing atomic file writes
+  default:     False
+  manual:      False
+
 library
   exposed-modules:
       UnliftIO
@@ -85,6 +90,8 @@ library
       c-sources:
           cbits/file-posix.c
           cbits/time-posix.c
+  if flag(old-glibc)
+     cpp-options: -DOLD_GLIBC
   default-language: Haskell2010
 
 test-suite unliftio-spec
@@ -151,3 +158,4 @@ benchmark conc-bench
     build-depends:
         unix
   default-language: Haskell2010
+
