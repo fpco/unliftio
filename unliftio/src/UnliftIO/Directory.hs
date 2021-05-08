@@ -155,7 +155,7 @@ createDirectoryIfMissing create_parents path0 =
 #if MIN_VERSION_directory(1,3,1)
 -- | Lifted 'D.createFileLink'.
 --
--- @since 0.2.6.0
+-- @since 0.2.16.0
 {-# INLINE createFileLink #-}
 createFileLink
   :: MonadIO m
