@@ -1,11 +1,12 @@
+{-# LANGUAGE CPP #-}
 module UnliftIO.DirectorySpec (spec) where
 
 import Test.Hspec
+#if MIN_VERSION_directory(1,3,1)
 import System.FilePath
 import UnliftIO.IO
 import UnliftIO.Directory
 import UnliftIO.Temporary
-
 
 
 spec :: Spec
@@ -24,3 +25,7 @@ spec = do
         writeFile origin fileContent'
         linkContent' <- readFile link
         linkContent' `shouldBe`fileContent'
+#else
+spec :: Spec
+spec = pure ()
+#endif
