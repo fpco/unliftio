@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.16
+
+* Add `createFileLink`
+
 ## 0.2.15
 
 * Updated documentation mentioning that `MonadUnliftIO` may be derived using
