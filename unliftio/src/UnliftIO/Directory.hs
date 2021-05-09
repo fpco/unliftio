@@ -154,7 +154,7 @@ createDirectoryIfMissing create_parents path0 =
 
 #if MIN_VERSION_directory(1,3,1)
 -- | Lifted 'D.createFileLink'.
---
+-- directory package version should be >= 1.3.1.
 -- @since 0.2.16.0
 {-# INLINE createFileLink #-}
 createFileLink
