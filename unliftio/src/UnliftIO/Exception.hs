@@ -170,7 +170,7 @@ catchJust f a b = a `catch` \e -> maybe (liftIO (throwIO e)) b $ f e
 -- section in
 -- [this blog post](https://www.fpcomplete.com/blog/2018/04/async-exception-handling-haskell/).
 catchSyncOrAsync :: (MonadUnliftIO m, Exception e) => m a -> (e -> m a) -> m a
-catchSyncOrAsync = catch
+catchSyncOrAsync f g = withRunInIO $ \run -> run f `EUnsafe.catch` \e -> run (g e)
 
 -- | Flipped version of 'catch'.
 --
