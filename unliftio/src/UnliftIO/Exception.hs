@@ -51,6 +51,11 @@ module UnliftIO.Exception
   , catches
   , catchesDeep
 
+    -- * Catching async exceptions (with recovery)
+  , catchSyncOrAsync
+  , handleSyncOrAsync
+  , trySyncOrAsync
+
     -- * Cleanup (no recovery)
   , onException
   , bracket
@@ -65,6 +70,7 @@ module UnliftIO.Exception
   , toSyncException
   , AsyncExceptionWrapper (..)
   , toAsyncException
+  , fromAsyncException
 
     -- * Check exception type
   , isSyncException
@@ -155,6 +161,17 @@ catchAnyDeep = catchDeep
 catchJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> m a -> (b -> m a) -> m a
 catchJust f a b = a `catch` \e -> maybe (liftIO (throwIO e)) b $ f e
 
+-- | A variant of 'catch' that catches both synchronous and asynchronous exceptions.
+--
+-- WARNING: This function (and other @*SyncOrAsync@ functions) is for advanced users. Most of the
+-- time, you probably want to use the non-@SyncOrAsync@ versions.
+--
+-- Before attempting to use this function, be familiar with the "Rules for async safe handling"
+-- section in
+-- [this blog post](https://www.fpcomplete.com/blog/2018/04/async-exception-handling-haskell/).
+catchSyncOrAsync :: (MonadUnliftIO m, Exception e) => m a -> (e -> m a) -> m a
+catchSyncOrAsync = catch
+
 -- | Flipped version of 'catch'.
 --
 -- @since 0.1.0.0
@@ -190,6 +207,12 @@ handleAnyDeep = flip catchAnyDeep
 -- @since 0.1.0.0
 handleJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> (b -> m a) -> m a -> m a
 handleJust f = flip (catchJust f)
+
+-- | A variant of 'handle' that catches both synchronous and asynchronous exceptions.
+--
+-- See 'catchSyncOrAsync'.
+handleSyncOrAsync :: (MonadUnliftIO m, Exception e) => (e -> m a) -> m a -> m a
+handleSyncOrAsync = flip catchSyncOrAsync
 
 -- | Run the given action and catch any synchronous exceptions as a 'Left' value.
 --
@@ -231,6 +254,12 @@ tryAnyDeep = tryDeep
 -- @since 0.1.0.0
 tryJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> m a -> m (Either b a)
 tryJust f a = catch (Right `liftM` a) (\e -> maybe (throwIO e) (return . Left) (f e))
+
+-- | A variant of 'try' that catches both synchronous and asynchronous exceptions.
+--
+-- See 'catchSyncOrAsync'.
+trySyncOrAsync :: (MonadUnliftIO m, Exception e) => m a -> m (Either e a)
+trySyncOrAsync f = catchSyncOrAsync (liftM Right f) (return . Left)
 
 -- | Evaluate the value to WHNF and catch any synchronous exceptions.
 --
@@ -471,6 +500,15 @@ toAsyncException e =
         Nothing -> toException (AsyncExceptionWrapper e)
   where
     se = toException e
+
+-- | Convert from an asynchronous exception.
+--
+-- For asynchronous exceptions, will unwrap all of the possible ways
+-- an async exception may be thrown (i.e. both unliftio's throwTo and
+-- Control.Exception's throwTo).
+-- For synchronous exceptions, returns Nothing.
+fromAsyncException :: Exception e => SomeException -> Maybe e
+fromAsyncException = fromException
 
 -- | Check if the given exception is synchronous.
 --
