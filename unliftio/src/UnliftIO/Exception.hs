@@ -501,14 +501,23 @@ toAsyncException e =
   where
     se = toException e
 
--- | Convert from an asynchronous exception.
+-- | Convert from an asynchronous exception, the inverse of 'toAsyncException'.
 --
 -- For asynchronous exceptions, will unwrap all of the possible ways
 -- an async exception may be thrown (i.e. both unliftio's throwTo and
 -- Control.Exception's throwTo).
 -- For synchronous exceptions, returns Nothing.
 fromAsyncException :: Exception e => SomeException -> Maybe e
-fromAsyncException = fromException
+fromAsyncException se = do
+  SomeAsyncException e1 <- fromException se
+  -- first, try to cast to `e` directly. if that doesn't
+  -- work, try to cast to AsyncExceptionWrapper, then
+  -- cast to `e`.
+  case cast e1 of
+    Just e -> return e
+    Nothing -> do
+      AsyncExceptionWrapper e2 <- cast e1
+      cast e2
 
 -- | Check if the given exception is synchronous.
 --
