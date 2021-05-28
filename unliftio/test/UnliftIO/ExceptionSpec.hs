@@ -46,7 +46,7 @@ spec = do
       result `shouldBe` AsyncCancelled
     it "should catch unliftio-wrapped async exceptions" $ do
       result <- withWrappedAsyncExceptionThrown $ \m -> m `catchSyncOrAsync` return
-      fromAsyncException result `shouldBe` Just Exception1
+      fromExceptionUnwrap result `shouldBe` Just Exception1
   describe "handleSyncOrAsync" $ do
     it "should catch sync exceptions" $ do
       result <- handleSyncOrAsync return $ throwIO Exception1
@@ -56,7 +56,7 @@ spec = do
       result `shouldBe` AsyncCancelled
     it "should catch unliftio-wrapped async exceptions" $ do
       result <- withWrappedAsyncExceptionThrown $ \m -> handleSyncOrAsync return m
-      fromAsyncException result `shouldBe` Just Exception1
+      fromExceptionUnwrap result `shouldBe` Just Exception1
   describe "trySyncOrAsync" $ do
     it "should catch sync exceptions" $ do
       result <- trySyncOrAsync $ void $ throwIO Exception1
@@ -66,11 +66,13 @@ spec = do
       result `shouldBe` Left AsyncCancelled
     it "should catch unliftio-wrapped async exceptions" $ do
       result <- withWrappedAsyncExceptionThrown $ \m -> trySyncOrAsync (void m)
-      first fromAsyncException result `shouldBe` Left (Just Exception1)
+      first fromExceptionUnwrap result `shouldBe` Left (Just Exception1)
 
-  describe "fromAsyncException" $ do
+  describe "fromExceptionUnwrap" $ do
     it "should be the inverse of toAsyncException" $ do
-      fromAsyncException (toAsyncException Exception1) `shouldBe` Just Exception1
+      fromExceptionUnwrap (toAsyncException Exception1) `shouldBe` Just Exception1
+    it "should be the inverse of toSyncException" $ do
+      fromExceptionUnwrap (toSyncException Exception1) `shouldBe` Just Exception1
 
   let shouldLeft x = either (const Nothing) Just x `shouldBe` Nothing
       shouldRight x = either (Just . show) (const Nothing) x `shouldBe` Nothing

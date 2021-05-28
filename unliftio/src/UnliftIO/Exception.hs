@@ -70,7 +70,7 @@ module UnliftIO.Exception
   , toSyncException
   , AsyncExceptionWrapper (..)
   , toAsyncException
-  , fromAsyncException
+  , fromExceptionUnwrap
 
     -- * Check exception type
   , isSyncException
@@ -169,6 +169,8 @@ catchJust f a b = a `catch` \e -> maybe (liftIO (throwIO e)) b $ f e
 -- Before attempting to use this function, be familiar with the "Rules for async safe handling"
 -- section in
 -- [this blog post](https://www.fpcomplete.com/blog/2018/04/async-exception-handling-haskell/).
+--
+-- @since 0.2.17
 catchSyncOrAsync :: (MonadUnliftIO m, Exception e) => m a -> (e -> m a) -> m a
 catchSyncOrAsync f g = withRunInIO $ \run -> run f `EUnsafe.catch` \e -> run (g e)
 
@@ -211,6 +213,8 @@ handleJust f = flip (catchJust f)
 -- | A variant of 'handle' that catches both synchronous and asynchronous exceptions.
 --
 -- See 'catchSyncOrAsync'.
+--
+-- @since 0.2.17
 handleSyncOrAsync :: (MonadUnliftIO m, Exception e) => (e -> m a) -> m a -> m a
 handleSyncOrAsync = flip catchSyncOrAsync
 
@@ -258,6 +262,8 @@ tryJust f a = catch (Right `liftM` a) (\e -> maybe (throwIO e) (return . Left) (
 -- | A variant of 'try' that catches both synchronous and asynchronous exceptions.
 --
 -- See 'catchSyncOrAsync'.
+--
+-- @since 0.2.17
 trySyncOrAsync :: (MonadUnliftIO m, Exception e) => m a -> m (Either e a)
 trySyncOrAsync f = catchSyncOrAsync (liftM Right f) (return . Left)
 
@@ -507,17 +513,13 @@ toAsyncException e =
 -- an async exception may be thrown (i.e. both unliftio's throwTo and
 -- Control.Exception's throwTo).
 -- For synchronous exceptions, returns Nothing.
-fromAsyncException :: Exception e => SomeException -> Maybe e
-fromAsyncException se = do
-  SomeAsyncException e1 <- fromException se
-  -- first, try to cast to `e` directly. if that doesn't
-  -- work, try to cast to AsyncExceptionWrapper, then
-  -- cast to `e`.
-  case cast e1 of
-    Just e -> return e
-    Nothing -> do
-      AsyncExceptionWrapper e2 <- cast e1
-      cast e2
+--
+-- @since 0.2.17
+fromExceptionUnwrap :: Exception e => SomeException -> Maybe e
+fromExceptionUnwrap se = do
+  case fromException se of
+    Just (AsyncExceptionWrapper e) -> cast e
+    Nothing -> fromException se
 
 -- | Check if the given exception is synchronous.
 --
