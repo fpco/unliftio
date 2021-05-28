@@ -67,8 +67,11 @@ module UnliftIO.Async
 
 #if MIN_VERSION_base(4,8,0)
     Conc, conc, runConc,
-    ConcException (..)
+    ConcException (..),
 #endif
+
+    -- * Re-exports
+    A.AsyncCancelled (..),
   ) where
 
 import           Control.Concurrent.Async (Async)
