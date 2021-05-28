@@ -67,7 +67,12 @@ module UnliftIO.Async
 
 #if MIN_VERSION_base(4,8,0)
     Conc, conc, runConc,
-    ConcException (..)
+    ConcException (..),
+#endif
+
+    -- * Re-exports
+#if MIN_VERSION_async(2,2,0)
+    A.AsyncCancelled (..),
 #endif
   ) where
 

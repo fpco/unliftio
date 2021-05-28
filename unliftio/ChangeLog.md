@@ -1,5 +1,11 @@
 # Changelog for unliftio
 
+## 0.2.17
+
+* Re-export `AsyncCancelled` in `UnliftIO.Async` [#80](https://github.com/fpco/unliftio/pull/80)
+* Add `fromExceptionUnwrap` [#80](https://github.com/fpco/unliftio/pull/80)
+* Add `catchSyncOrAsync`, `handleSyncOrAsync`, and `trySyncOrAsync` [#80](https://github.com/fpco/unliftio/pull/80)
+
 ## 0.2.16
 
 * Add `createFileLink`
