@@ -1,10 +1,21 @@
+{-# LANGUAGE CPP #-}
+
 module UnliftIO.ExceptionSpec (spec) where
 
+import qualified Control.Exception
 import Control.Monad (void, (<=<))
 import Data.Bifunctor (first)
 import Test.Hspec
 import UnliftIO
 import UnliftIO.Concurrent (threadDelay)
+
+#if MIN_VERSION_async(2,2,0)
+cancelled :: AsyncCancelled
+cancelled = AsyncCancelled
+#else
+cancelled :: Control.Exception.AsyncException
+cancelled = Control.Exception.ThreadKilled
+#endif
 
 spec :: Spec
 spec = do
@@ -43,7 +54,7 @@ spec = do
       result `shouldBe` Exception1
     it "should catch async exceptions" $ do
       result <- withAsyncExceptionThrown $ \m -> m `catchSyncOrAsync` return
-      result `shouldBe` AsyncCancelled
+      result `shouldBe` cancelled
     it "should catch unliftio-wrapped async exceptions" $ do
       result <- withWrappedAsyncExceptionThrown $ \m -> m `catchSyncOrAsync` return
       fromExceptionUnwrap result `shouldBe` Just Exception1
@@ -53,7 +64,7 @@ spec = do
       result `shouldBe` Exception1
     it "should catch async exceptions" $ do
       result <- withAsyncExceptionThrown $ \m -> handleSyncOrAsync return m
-      result `shouldBe` AsyncCancelled
+      result `shouldBe` cancelled
     it "should catch unliftio-wrapped async exceptions" $ do
       result <- withWrappedAsyncExceptionThrown $ \m -> handleSyncOrAsync return m
       fromExceptionUnwrap result `shouldBe` Just Exception1
@@ -63,7 +74,7 @@ spec = do
       result `shouldBe` Left Exception1
     it "should catch async exceptions" $ do
       result <- withAsyncExceptionThrown $ \m -> trySyncOrAsync (void m)
-      result `shouldBe` Left AsyncCancelled
+      result `shouldBe` Left cancelled
     it "should catch unliftio-wrapped async exceptions" $ do
       result <- withWrappedAsyncExceptionThrown $ \m -> trySyncOrAsync (void m)
       first fromExceptionUnwrap result `shouldBe` Left (Just Exception1)
