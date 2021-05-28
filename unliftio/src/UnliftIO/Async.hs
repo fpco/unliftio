@@ -71,7 +71,9 @@ module UnliftIO.Async
 #endif
 
     -- * Re-exports
+#if MIN_VERSION_async(2,2,0)
     A.AsyncCancelled (..),
+#endif
   ) where
 
 import           Control.Concurrent.Async (Async)
