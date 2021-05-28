@@ -1,6 +1,6 @@
 module UnliftIO.ExceptionSpec (spec) where
 
-import Control.Monad (void)
+import Control.Monad (void, (<=<))
 import Data.Bifunctor (first)
 import Test.Hspec
 import UnliftIO
@@ -72,7 +72,9 @@ spec = do
     it "should be the inverse of toAsyncException" $ do
       fromExceptionUnwrap (toAsyncException Exception1) `shouldBe` Just Exception1
     it "should be the inverse of toSyncException" $ do
-      fromExceptionUnwrap (toSyncException Exception1) `shouldBe` Just Exception1
+      let toAsyncToSync = toSyncException . toAsyncException
+          fromSyncFromAsyc = fromExceptionUnwrap <=< fromExceptionUnwrap
+      fromSyncFromAsyc (toAsyncToSync Exception1) `shouldBe` Just Exception1
 
   let shouldLeft x = either (const Nothing) Just x `shouldBe` Nothing
       shouldRight x = either (Just . show) (const Nothing) x `shouldBe` Nothing

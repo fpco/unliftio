@@ -507,19 +507,19 @@ toAsyncException e =
   where
     se = toException e
 
--- | Convert from an asynchronous exception, the inverse of 'toAsyncException'.
+-- | Convert from a possibly wrapped exception.
 --
--- For asynchronous exceptions, will unwrap all of the possible ways
--- an async exception may be thrown (i.e. both unliftio's throwTo and
--- Control.Exception's throwTo).
--- For synchronous exceptions, returns Nothing.
+-- The inverse of 'toAsyncException' and 'toSyncException'. When using those
+-- functions (or functions that use them, like 'throwTo' or 'throwIO'),
+-- 'fromException' might not be sufficient because the exception might be
+-- wrapped within 'SyncExceptionWrapper' or 'AsyncExceptionWrapper'.
 --
 -- @since 0.2.17
 fromExceptionUnwrap :: Exception e => SomeException -> Maybe e
-fromExceptionUnwrap se = do
-  case fromException se of
-    Just (AsyncExceptionWrapper e) -> cast e
-    Nothing -> fromException se
+fromExceptionUnwrap se
+  | Just (AsyncExceptionWrapper e) <- fromException se = cast e
+  | Just (SyncExceptionWrapper e) <- fromException se = cast e
+  | otherwise = fromException se
 
 -- | Check if the given exception is synchronous.
 --
