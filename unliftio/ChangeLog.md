@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.18
+
+* Reexport `asyncExceptionFromException` and `asyncExceptionToException` [#81](https://github.com/fpco/unliftio/issues/81)
+
 ## 0.2.17
 
 * Re-export `AsyncCancelled` in `UnliftIO.Async` [#80](https://github.com/fpco/unliftio/pull/80)

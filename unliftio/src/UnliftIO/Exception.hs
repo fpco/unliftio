@@ -90,6 +90,8 @@ module UnliftIO.Exception
   , SomeAsyncException (..)
   , IOException
   , EUnsafe.assert
+  , EUnsafe.asyncExceptionToException
+  , EUnsafe.asyncExceptionFromException
 #if !MIN_VERSION_base(4,8,0)
   , displayException
 #endif
