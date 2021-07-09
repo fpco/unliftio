@@ -89,7 +89,7 @@ import Data.ByteString as B (ByteString, writeFile)
 import Control.Monad.IO.Unlift
 import UnliftIO.IO (Handle, IOMode(..), withBinaryFile)
 
-#if WINDOWS
+#if (WINDOWS || OLD-GLIBC)
 
 
 ensureFileDurable = (`seq` pure ())
