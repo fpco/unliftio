@@ -644,6 +644,10 @@ instance Show StringException where
     show (StringException s _) = "UnliftIO.Exception.throwString called with:\n\n" ++ s
 #endif
 
+-- | @since 0.2.19
+instance Eq StringException where
+  StringException msg1 _ == StringException msg2 _ = msg1 == msg2
+
 -- | @since 0.1.0.0
 instance Exception StringException
 
