@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.19
+
+* Add `Eq` instance for `StringException` (https://github.com/fpco/unliftio/pull/83)
+
 ## 0.2.18
 
 * Reexport `asyncExceptionFromException` and `asyncExceptionToException` [#81](https://github.com/fpco/unliftio/issues/81)
