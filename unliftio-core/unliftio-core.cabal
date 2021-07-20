@@ -1,10 +1,10 @@
 cabal-version: 1.12
 
--- This file has been generated from package.yaml by hpack version 0.33.0.
+-- This file has been generated from package.yaml by hpack version 0.34.4.
 --
 -- see: https://github.com/sol/hpack
 --
--- hash: c31278cd17e5fceb5bd664ccef008569e6b9f9d7cc0b6f3a3807bb7e775d6f42
+-- hash: 035dbd06b592d4b71bc70c84b9a18516afbd810cf4fd4014624d54903244233c
 
 name:           unliftio-core
 version:        0.2.0.1
@@ -30,6 +30,6 @@ library
   hs-source-dirs:
       src
   build-depends:
-      base >=4.9 && <4.15
+      base >=4.9 && <4.16
     , transformers >=0.2 && <0.6
   default-language: Haskell2010
