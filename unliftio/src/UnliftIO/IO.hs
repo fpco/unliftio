@@ -9,6 +9,7 @@ module UnliftIO.IO
   , IO.stderr
   , withFile
   , withBinaryFile
+  , openFile
   , hClose
   , hFlush
   , hFileSize
@@ -50,6 +51,12 @@ withFile fp mode inner = withRunInIO $ \run -> IO.withFile fp mode $ run . inner
 -- @since 0.1.0.0
 withBinaryFile :: MonadUnliftIO m => FilePath -> IOMode -> (Handle -> m a) -> m a
 withBinaryFile fp mode inner = withRunInIO $ \run -> IO.withBinaryFile fp mode $ run . inner
+
+-- | Lifted version of 'IO.openFile'
+--
+-- @since 0.2.20
+openFile :: MonadIO m => FilePath -> IOMode -> m Handle
+openFile fp = liftIO . IO.openFile fp
 
 -- | Lifted version of 'IO.hClose'
 --

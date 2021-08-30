@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.20
+
+* Add lifted `System.IO.openFile` (https://github.com/fpco/unliftio/pull/88)
+
 ## 0.2.19
 
 * Add `Eq` instance for `StringException` (https://github.com/fpco/unliftio/pull/83)
