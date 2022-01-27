@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.20.1
+
+* Fix time-osx.c for aarch64 mac [#91](https://github.com/fpco/unliftio/pull/91)
+
 ## 0.2.20
 
 * Add lifted `System.IO.openFile` (https://github.com/fpco/unliftio/pull/88)
