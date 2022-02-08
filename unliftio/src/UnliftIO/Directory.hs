@@ -9,6 +9,9 @@ module UnliftIO.Directory (
   , createDirectoryIfMissing
 #if MIN_VERSION_directory(1,3,1)
   , createFileLink
+  , createDirectoryLink
+  , removeDirectoryLink
+  , getSymbolicLinkTarget
 #endif
   , removeDirectory
   , removeDirectoryRecursive
@@ -33,6 +36,10 @@ module UnliftIO.Directory (
 #if MIN_VERSION_directory(1,2,3)
   , XdgDirectory(..)
   , getXdgDirectory
+#endif
+#if MIN_VERSION_directory(1,3,2)
+  , XdgDirectoryList(..)
+  , getXdgDirectoryList
 #endif
   , getAppUserDataDirectory
   , getUserDocumentsDirectory
@@ -123,6 +130,9 @@ import System.Directory
 #if MIN_VERSION_directory(1,2,3)
   , XdgDirectory(..)
 #endif
+#if MIN_VERSION_directory(1,3,2)
+  , XdgDirectoryList(..)
+#endif
   , emptyPermissions
 #if MIN_VERSION_directory(1,2,4)
   , exeExtension
@@ -164,6 +174,27 @@ createFileLink
   -> m ()
 createFileLink targetPath linkPath =
   liftIO (D.createFileLink targetPath linkPath)
+
+-- | Lifted 'D.createDirectoryLink'.
+--
+-- @since 0.2.21.0
+createDirectoryLink :: MonadIO m => FilePath -> FilePath -> m ()
+createDirectoryLink targetPath linkPath =
+  liftIO (D.createDirectoryLink targetPath linkPath)
+
+-- | Lifted 'D.removeDirectoryLink'.
+--
+-- @since 0.2.21.0
+removeDirectoryLink :: MonadIO m => FilePath -> m ()
+removeDirectoryLink linkPath =
+  liftIO (D.removeDirectoryLink linkPath)
+
+-- | Lifted 'D.getSymbolicLinkTarget'.
+--
+-- @since 0.2.21.0
+getSymbolicLinkTarget :: MonadIO m => FilePath -> m FilePath
+getSymbolicLinkTarget linkPath =
+  liftIO (D.getSymbolicLinkTarget linkPath)
 #endif
 
 -- | Lifted 'D.removeDirectory'.
@@ -250,6 +281,15 @@ getHomeDirectory = liftIO D.getHomeDirectory
 {-# INLINE getXdgDirectory #-}
 getXdgDirectory :: MonadIO m => XdgDirectory -> FilePath -> m FilePath
 getXdgDirectory xdgDir suffix = liftIO (D.getXdgDirectory xdgDir suffix)
+#endif
+
+#if MIN_VERSION_directory(1,3,2)
+-- | Lifted 'D.getXdgDirectoryList'.
+--
+-- @since 0.2.21.0
+getXdgDirectoryList :: MonadIO m => XdgDirectoryList -> m [FilePath]
+getXdgDirectoryList xdgDirectoryList =
+  liftIO (D.getXdgDirectoryList xdgDirectoryList)
 #endif
 
 -- | Lifted 'D.getAppUserDataDirectory'.
