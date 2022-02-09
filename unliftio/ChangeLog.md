@@ -1,5 +1,13 @@
 # Changelog for unliftio
 
+## 0.2.21.0
+
+* Add `UnliftIO.Directory.createDirectoryLink`
+* Add `UnliftIO.Directory.removeDirectoryLink`
+* Add `UnliftIO.Directory.getSymbolicLinkTarget`
+* Add `UnliftIO.Directory.XdgDirectoryList`
+* Add `UnliftIO.Directory.getXdgDirectoryList`
+
 ## 0.2.20.1
 
 * Fix time-osx.c for aarch64 mac [#91](https://github.com/fpco/unliftio/pull/91)
