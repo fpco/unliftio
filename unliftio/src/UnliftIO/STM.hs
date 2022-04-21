@@ -73,10 +73,12 @@ module UnliftIO.STM
   , newTBQueueIO
   , STM.readTBQueue
   , STM.tryReadTBQueue
+  , STM.flushTBQueue
   , STM.peekTBQueue
   , STM.tryPeekTBQueue
   , STM.writeTBQueue
   , STM.unGetTBQueue
+  , STM.lengthTBQueue
   , STM.isEmptyTBQueue
   , STM.isFullTBQueue
   ) where

@@ -1,5 +1,10 @@
 # Changelog for unliftio
 
+## 0.2.22.0
+
+* Add `UnliftIO.STM.flushTBQueue`
+* Add `UnliftIO.STM.lengthTBQueue`
+
 ## 0.2.21.0
 
 * Add `UnliftIO.Directory.createDirectoryLink`
