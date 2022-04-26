@@ -1,5 +1,9 @@
 # ChangeLog for unliftio-core
 
+## 0.2.0.2
+
+* Widen `base` upperbound to `< 4.17` to support ghc-9.2.
+
 ## 0.2.0.1
 
 * Remove faulty default implementation of `withRunInIO` [#56](https://github.com/fpco/unliftio/issues/56)
