@@ -422,7 +422,7 @@ withException thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ 
     case res1 of
         Left e1 -> do
             -- see explanation in bracket
-            _ :: Either SomeException b <- EUnsafe.try $ restore $ run $ after e1
+            _ :: Either SomeException b <- EUnsafe.try $ run $ after e1
             EUnsafe.throwIO e1
         Right x -> return x
 
