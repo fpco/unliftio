@@ -18,7 +18,7 @@ cancelled = Control.Exception.ThreadKilled
 #endif
 
 spec :: Spec
-spec = focus $ do
+spec = do
   let -- The callback will run in a thread that gets cancelled immediately,
       -- then get Exception2 thrown synchronously after 1 second.
       withAsyncExceptionThrown :: (IO a -> IO b) -> IO b
