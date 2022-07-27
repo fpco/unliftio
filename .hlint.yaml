@@ -1,0 +1,20 @@
+# Warnings currently triggered by your code
+- ignore: {name: "Avoid lambda"} # 2 hints
+- ignore: {name: "Avoid lambda using `infix`"} # 3 hints
+- ignore: {name: "Eta reduce"} # 1 hint
+- ignore: {name: "Move brackets to avoid $"} # 14 hints
+- ignore: {name: "Redundant bracket"} # 34 hints
+- ignore: {name: "Replace case with maybe"} # 1 hint
+- ignore: {name: "Unused LANGUAGE pragma"} # 12 hints
+- ignore: {name: "Use <$>"} # 2 hints
+- ignore: {name: "Use asum"} # 4 hints
+- ignore: {name: "Use camelCase"} # 19 hints
+- ignore: {name: "Use const"} # 4 hints
+- ignore: {name: "Use even"} # 3 hints
+- ignore: {name: "Use fewer imports"} # 1 hint
+- ignore: {name: "Use fmap"} # 13 hints
+- ignore: {name: "Use lambda-case"} # 1 hint
+- ignore: {name: "Use newTVarIO"} # 3 hints
+- ignore: {name: "Use readTVarIO"} # 8 hints
+- ignore: {name: "Use void"} # 1 hint
+- ignore: {name: "Use when"} # 2 hints
