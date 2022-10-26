@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## (???)
+
+* `UnliftIO.Exception` re-exports the `Handler` and sync/async exception wrappers from `safe-exceptions`, instead of redefining them.
+
 ## 0.2.22.0
 
 * Add `UnliftIO.STM.flushTBQueue`

@@ -47,7 +47,7 @@ module UnliftIO.Exception
   , pureTry
   , pureTryDeep
 
-  , Handler(..)
+  , ESafe.Handler (..)
   , catches
   , catchesDeep
 
@@ -66,9 +66,11 @@ module UnliftIO.Exception
   , bracketOnError_
 
     -- * Coercion to sync and async
-  , SyncExceptionWrapper (..)
+    -- | In version @(TODO), these were changed with aliases to the values
+    -- from "Control.Exception.Safe" in the @safe-exceptions@ package.
+  , ESafe.SyncExceptionWrapper(..)
   , toSyncException
-  , AsyncExceptionWrapper (..)
+  , ESafe.AsyncExceptionWrapper(..)
   , toAsyncException
   , fromExceptionUnwrap
 
@@ -105,6 +107,7 @@ import qualified Control.Exception as EUnsafe
 import Control.DeepSeq (NFData (..), ($!!))
 import Data.Typeable (Typeable, cast)
 import System.IO.Unsafe (unsafePerformIO)
+import qualified Control.Exception.Safe as ESafe
 
 #if MIN_VERSION_base(4,9,0)
 import GHC.Stack (prettySrcLoc)
@@ -286,13 +289,17 @@ pureTryDeep = unsafePerformIO . tryAnyDeep . return
 
 -- | A helper data type for usage with 'catches' and similar functions.
 --
+-- Since version #(TODO), this is an alias for 'ESafe.Handler' from
+-- @safe-exceptions@ package, originally defined in "Control.Monad.Catch"
+-- from the @exceptions@ package.
+--
 -- @since 0.1.0.0
-data Handler m a = forall e . Exception e => Handler (e -> m a)
+type Handler = ESafe.Handler
 
 -- | Internal.
 catchesHandler :: MonadIO m => [Handler m a] -> SomeException -> m a
 catchesHandler handlers e = foldr tryHandler (liftIO (EUnsafe.throwIO e)) handlers
-    where tryHandler (Handler handler) res
+    where tryHandler (ESafe.Handler handler) res
               = case fromException e of
                 Just e' -> handler e'
                 Nothing -> res
@@ -441,23 +448,6 @@ onException thing after = withException thing (\(_ :: SomeException) -> after)
 throwIO :: (MonadIO m, Exception e) => e -> m a
 throwIO = liftIO . EUnsafe.throwIO . toSyncException
 
--- | Wrap up an asynchronous exception to be treated as a synchronous
--- exception.
---
--- This is intended to be created via 'toSyncException'.
---
--- @since 0.1.0.0
-data SyncExceptionWrapper = forall e. Exception e => SyncExceptionWrapper e
-    deriving Typeable
--- | @since 0.1.0.0
-instance Show SyncExceptionWrapper where
-    show (SyncExceptionWrapper e) = show e
--- | @since 0.1.0.0
-instance Exception SyncExceptionWrapper where
-#if MIN_VERSION_base(4,8,0)
-    displayException (SyncExceptionWrapper e) = displayException e
-#endif
-
 -- | Convert an exception into a synchronous exception.
 --
 -- For synchronous exceptions, this is the same as 'toException'.
@@ -466,33 +456,8 @@ instance Exception SyncExceptionWrapper where
 --
 -- @since 0.1.0.0
 toSyncException :: Exception e => e -> SomeException
-toSyncException e =
-    case fromException se of
-        Just (SomeAsyncException _) -> toException (SyncExceptionWrapper e)
-        Nothing -> se
-  where
-    se = toException e
-
--- | Wrap up a synchronous exception to be treated as an asynchronous
--- exception.
---
--- This is intended to be created via 'toAsyncException'.
---
--- @since 0.1.0.0
-data AsyncExceptionWrapper = forall e. Exception e => AsyncExceptionWrapper e
-    deriving Typeable
--- | @since 0.1.0.0
-instance Show AsyncExceptionWrapper where
-    show (AsyncExceptionWrapper e) = show e
--- | @since 0.1.0.0
-instance Exception AsyncExceptionWrapper where
-    toException = toException . SomeAsyncException
-    fromException se = do
-        SomeAsyncException e <- fromException se
-        cast e
-#if MIN_VERSION_base(4,8,0)
-    displayException (AsyncExceptionWrapper e) = displayException e
-#endif
+toSyncException =
+    ESafe.toSyncException
 
 -- | Convert an exception into an asynchronous exception.
 --
@@ -502,12 +467,8 @@ instance Exception AsyncExceptionWrapper where
 --
 -- @since 0.1.0.0
 toAsyncException :: Exception e => e -> SomeException
-toAsyncException e =
-    case fromException se of
-        Just (SomeAsyncException _) -> se
-        Nothing -> toException (AsyncExceptionWrapper e)
-  where
-    se = toException e
+toAsyncException =
+    ESafe.toAsyncException
 
 -- | Convert from a possibly wrapped exception.
 --
@@ -519,18 +480,16 @@ toAsyncException e =
 -- @since 0.2.17
 fromExceptionUnwrap :: Exception e => SomeException -> Maybe e
 fromExceptionUnwrap se
-  | Just (AsyncExceptionWrapper e) <- fromException se = cast e
-  | Just (SyncExceptionWrapper e) <- fromException se = cast e
+  | Just (ESafe.AsyncExceptionWrapper e) <- fromException se = cast e
+  | Just (ESafe.SyncExceptionWrapper e) <- fromException se = cast e
   | otherwise = fromException se
 
 -- | Check if the given exception is synchronous.
 --
 -- @since 0.1.0.0
 isSyncException :: Exception e => e -> Bool
-isSyncException e =
-    case fromException (toException e) of
-        Just (SomeAsyncException _) -> False
-        Nothing -> True
+isSyncException =
+    ESafe.isSyncException
 
 -- | Check if the given exception is asynchronous.
 --

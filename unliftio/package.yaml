@@ -20,6 +20,7 @@ dependencies:
   - directory
   - filepath
   - process >= 1.2.0.0
+  - safe-exceptions
   - stm >= 2.5
   - time
   - transformers
