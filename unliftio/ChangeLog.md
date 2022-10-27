@@ -1,5 +1,13 @@
 # Changelog for unliftio
 
+## 0.2.23.0
+
+* `UnliftIO.Exception` re-exports the `Handler` and sync/async exception wrappers
+  from `safe-exceptions`, instead of redefining them.
+    * With this change, you won't be able to distinguish between an asynchronous
+      exception from `UnliftIO.Exception.throwTo` and `Control.Exception.Safe.throwTo`.
+    * [#103](https://github.com/fpco/unliftio/pull/103)
+
 ## 0.2.22.0
 
 * Add `UnliftIO.STM.flushTBQueue`
