@@ -108,6 +108,7 @@ import Control.DeepSeq (NFData (..), ($!!))
 import Data.Typeable (Typeable, cast)
 import System.IO.Unsafe (unsafePerformIO)
 import qualified Control.Exception.Safe as ESafe
+import Control.Exception.Safe (Handler(..))
 
 #if MIN_VERSION_base(4,9,0)
 import GHC.Stack (prettySrcLoc)
@@ -286,15 +287,6 @@ pureTry a = unsafePerformIO $ (return $! Right $! a) `catchAny` (return . Left)
 -- @since 0.2.2.0
 pureTryDeep :: NFData a => a -> Either SomeException a
 pureTryDeep = unsafePerformIO . tryAnyDeep . return
---
--- | A helper data type for usage with 'catches' and similar functions.
---
--- Since version /0.2.23.0/, this is an alias for 'ESafe.Handler' from
--- @safe-exceptions@ package, originally defined in "Control.Monad.Catch"
--- from the @exceptions@ package.
---
--- @since 0.1.0.0
-type Handler = ESafe.Handler
 
 -- | Internal.
 catchesHandler :: MonadIO m => [Handler m a] -> SomeException -> m a
