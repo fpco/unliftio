@@ -66,7 +66,7 @@ module UnliftIO.Exception
   , bracketOnError_
 
     -- * Coercion to sync and async
-    -- | In version @(TODO), these were changed with aliases to the values
+    -- | In version /0.2.23.0/, these were changed with aliases to the values
     -- from "Control.Exception.Safe" in the @safe-exceptions@ package.
   , ESafe.SyncExceptionWrapper(..)
   , toSyncException
@@ -286,10 +286,10 @@ pureTry a = unsafePerformIO $ (return $! Right $! a) `catchAny` (return . Left)
 -- @since 0.2.2.0
 pureTryDeep :: NFData a => a -> Either SomeException a
 pureTryDeep = unsafePerformIO . tryAnyDeep . return
-
+--
 -- | A helper data type for usage with 'catches' and similar functions.
 --
--- Since version #(TODO), this is an alias for 'ESafe.Handler' from
+-- Since version /0.2.23.0/, this is an alias for 'ESafe.Handler' from
 -- @safe-exceptions@ package, originally defined in "Control.Monad.Catch"
 -- from the @exceptions@ package.
 --
