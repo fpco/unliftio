@@ -10,7 +10,10 @@ import Test.Hspec
 #ifndef WINDOWS
 import Control.Monad (forM_)
 import Data.Bool (bool)
+import Data.List (isInfixOf)
 import System.FilePath ((</>))
+import System.IO.Error (ioeGetLocation)
+import System.Posix.Files (setFileMode, ownerReadMode)
 import Test.QuickCheck
 import UnliftIO.Directory
 import UnliftIO.Exception
@@ -50,6 +53,13 @@ spec = do
   writeBinaryFileSpec "writeBinaryFileDurable" File.writeBinaryFileDurable
   withBinaryFileSpec True "withBinaryFileDurableAtomic" File.withBinaryFileDurableAtomic
   writeBinaryFileSpec "writeBinaryFileDurableAtomic" File.writeBinaryFileDurableAtomic
+
+  describe "Exceptions helpfully mention path names" $ do
+    it "the error of withBinaryFileDurableAtomic failing on readonly dir contains the dir path" $ do
+      withSystemTempDirectory "unwritable-test-dir" $ \dirPath -> do
+        setFileMode dirPath ownerReadMode
+        (withBinaryFileDurableAtomic (dirPath </> "testfile") WriteMode (\h -> return ()) :: IO ())
+          `shouldThrow` (\(e :: IOError) -> dirPath `isInfixOf` ioeGetLocation e)
 
 writeFileUtf8 fp str = withBinaryFile fp WriteMode (`BB.hPutBuilder` BB.stringUtf8 str)
 
