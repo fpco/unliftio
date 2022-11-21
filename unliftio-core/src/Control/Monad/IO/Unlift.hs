@@ -44,11 +44,24 @@ newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
 --
 -- Instances of @MonadUnliftIO@ must also satisfy the idempotency law:
 --
--- * @withRunInIO (\\run -> (liftIO . run) m) = m@
+-- * @withRunInIO (\\run -> run m) = m@
 --
--- This law showcases two properties. First, 'withRunInIO' doesn't change
--- the monadic context, and second, @liftIO . run@ is equivalent to
--- @id@ IF called in the same monadic context as 'withRunInIO'.
+-- This law showcases that 'withRunInIO' and @run@ are inverse operations.
+-- @run@ will "lower" the @m@ action to 'IO', then 'withRunInIO' will "lift"
+-- it back up to @m@, with no changes to the monadic context.
+--
+-- As an example of an invalid instance, a naive implementation of
+-- @MonadUnliftIO (StateT s m)@ might be
+--
+-- @
+-- withRunInIO inner =
+--   StateT $ \\s ->
+--     withRunInIO $ \\run ->
+--       inner (run . flip evalStateT s)
+-- @
+--
+-- This breaks the idempotency law because the inner @run m@ would throw away
+-- any state changes in @m@.
 --
 -- @since 0.1.0.0
 class MonadIO m => MonadUnliftIO m where
