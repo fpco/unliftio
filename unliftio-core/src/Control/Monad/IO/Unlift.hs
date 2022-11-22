@@ -35,20 +35,17 @@ newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
 -- 'MonadUnliftIO' to 'ReaderT' and 'IdentityT' transformers on top of
 -- 'IO'.
 --
--- Laws. For any value @u@ returned by 'askUnliftIO', it must meet the
+-- Laws. For any function @run@ provided by 'withRunInIO', it must meet the
 -- monad transformer laws as reformulated for @MonadUnliftIO@:
 --
--- * @unliftIO u . return = return@
+-- * @run . return = return@
 --
--- * @unliftIO u (m >>= f) = unliftIO u m >>= unliftIO u . f@
+-- * @run (m >>= f) = run m >>= run . f@
 --
--- Instances of @MonadUnliftIO@ must also satisfy the idempotency law:
+-- Instances of @MonadUnliftIO@ must also satisfy the following laws:
 --
--- * @withRunInIO (\\run -> run m) = m@
---
--- This law showcases that 'withRunInIO' and @run@ are inverse operations.
--- @run@ will "lower" the @m@ action to 'IO', then 'withRunInIO' will "lift"
--- it back up to @m@, with no changes to the monadic context.
+-- [Identity law] @withRunInIO (\\run -> run m) = m@
+-- [Inverse law]  @withRunInIO (\\_ -> m) = liftIO m@
 --
 -- As an example of an invalid instance, a naive implementation of
 -- @MonadUnliftIO (StateT s m)@ might be
@@ -60,7 +57,7 @@ newtype UnliftIO m = UnliftIO { unliftIO :: forall a. m a -> IO a }
 --       inner (run . flip evalStateT s)
 -- @
 --
--- This breaks the idempotency law because the inner @run m@ would throw away
+-- This breaks the identity law because the inner @run m@ would throw away
 -- any state changes in @m@.
 --
 -- @since 0.1.0.0
