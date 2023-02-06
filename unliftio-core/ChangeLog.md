@@ -1,5 +1,9 @@
 # ChangeLog for unliftio-core
 
+## 0.2.1.0
+
+* Added `Control.Monad.IO.Unlift.liftIOOp`
+
 ## 0.2.0.2
 
 * Widen `base` upperbound to `< 4.17` to support ghc-9.2.

@@ -9,6 +9,7 @@ module Control.Monad.IO.Unlift
   , withUnliftIO
   , toIO
   , wrappedWithRunInIO
+  , liftIOOp
   , MonadIO (..)
   ) where
 
@@ -160,3 +161,17 @@ wrappedWithRunInIO :: MonadUnliftIO n
                    -> m b
 wrappedWithRunInIO wrap unwrap inner = wrap $ withRunInIO $ \run ->
   inner $ run . unwrap
+
+{- | A helper function for lifting @IO a -> IO b@ functions into any @MonadUnliftIO@.
+
+=== __Example__
+
+> liftedTry :: (Exception e, MonadUnliftIO m) => m a -> m (Either e a)
+> liftedTry m = liftIOOp Control.Exception.try m
+
+@since 0.2.1.0
+-}
+liftIOOp :: MonadUnliftIO m => (IO a -> IO b) -> m a -> m b
+liftIOOp f x = do
+  runInIO <- askRunInIO
+  liftIO $ f $ runInIO x
