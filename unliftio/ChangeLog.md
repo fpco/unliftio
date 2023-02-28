@@ -1,5 +1,10 @@
 # Changelog for unliftio
 
+## 0.2.24.0
+
+* Add `UnliftIO.STM.writeTMVar`
+* Add `UnliftIO.STM.stateTVar`
+
 ## 0.2.23.0
 
 * `UnliftIO.Exception` re-exports the `Handler` and sync/async exception wrappers
