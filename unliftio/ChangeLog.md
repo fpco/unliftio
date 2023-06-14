@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.25.0
+
+* Add `UnliftIO.Exception.Lens`
+
 ## 0.2.24.0
 
 * Add `UnliftIO.STM.writeTMVar`
