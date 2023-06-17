@@ -3,6 +3,7 @@
 {-# LANGUAGE GeneralizedNewtypeDeriving #-}
 {-# LANGUAGE LambdaCase #-}
 {-# LANGUAGE OverloadedStrings #-}
+{-# LANGUAGE BangPatterns #-}
 {-# LANGUAGE ViewPatterns #-}
 module UnliftIO.IO.File.Posix
   ( withBinaryFileDurable
@@ -130,7 +131,15 @@ ioModeToFlags iomode =
 
 newtype DirFd = DirFd
   { unDirFd :: Fd
-  }
+  } deriving (Eq, Ord, Show)
+
+-- | For `DirFd`s that we obtain from dir paths, keep the path around
+-- so we can use it in helpful error messages when failing to create
+-- files inside the dir.
+data DirFdWithPath = DirFdWithPath
+  { dirFdWithPathDirFd :: !DirFd
+  , dirFdWithPathPath :: !FilePath
+  } deriving (Eq, Ord, Show)
 
 -- | Returns a low-level file descriptor for a directory path. This function
 -- exists given the fact that 'openFile' does not work with directories.
@@ -147,14 +156,14 @@ openDir fp
   withFilePath fp $ \cFp ->
     Fd <$>
     throwErrnoIfMinus1Retry
-      "openDir"
+      ("openDir: " ++ fp)
       (c_open cFp (ioModeToFlags ReadMode) 0o660)
 
 -- | Closes a 'Fd' that points to a Directory.
-closeDirectory :: MonadIO m => DirFd -> m ()
-closeDirectory (DirFd (Fd dirFd)) =
+closeDirectory :: MonadIO m => DirFdWithPath -> m ()
+closeDirectory (DirFdWithPath (DirFd (Fd dirFd)) dirPath) =
   liftIO $
-  throwErrnoIfMinus1Retry_ "closeDirectory" $ c_close dirFd
+  throwErrnoIfMinus1Retry_ ("closeDirectory: " ++ dirPath) $ c_close dirFd
 
 -- | Executes the low-level C function fsync on a C file descriptor
 fsyncFileDescriptor
@@ -167,13 +176,14 @@ fsyncFileDescriptor name fd =
 
 -- | Call @fsync@ on the file handle. Accepts an arbitary string for error reporting.
 fsyncFileHandle :: String -> Handle -> IO ()
-fsyncFileHandle fname hdl = withHandleFd hdl (fsyncFileDescriptor (fname ++ "/File"))
+fsyncFileHandle errorPrefix hdl = withHandleFd hdl (fsyncFileDescriptor (errorPrefix ++ "/File"))
 
 
 -- | Call @fsync@ on the opened directory file descriptor. Accepts an arbitary
 -- string for error reporting.
-fsyncDirectoryFd :: String -> DirFd -> IO ()
-fsyncDirectoryFd fname = fsyncFileDescriptor (fname ++ "/Directory") . unDirFd
+fsyncDirectoryFd :: String -> DirFdWithPath -> IO ()
+fsyncDirectoryFd errorPrefix (DirFdWithPath (DirFd fd) dirPath) =
+  fsyncFileDescriptor (errorPrefix ++ ": " ++ dirPath) fd
 
 
 -- | Opens a file from a directory, using this function in favour of a regular
@@ -185,13 +195,13 @@ fsyncDirectoryFd fname = fsyncFileDescriptor (fname ++ "/Directory") . unDirFd
 -- If you use this function, make sure you are working on an masked state,
 -- otherwise async exceptions may leave file descriptors open.
 --
-openFileFromDir :: MonadIO m => DirFd -> FilePath -> IOMode -> m Handle
-openFileFromDir dirFd filePath@(takeFileName -> fileName) iomode =
+openFileFromDir :: MonadIO m => DirFdWithPath -> FilePath -> IOMode -> m Handle
+openFileFromDir (DirFdWithPath dirFd dirPath) filePath@(takeFileName -> fileName) iomode =
   liftIO $
   withFilePath fileName $ \cFileName ->
     bracketOnError
       (do fileFd <-
-            throwErrnoIfMinus1Retry "openFileFromDir" $
+            throwErrnoIfMinus1Retry ("openFileFromDir: " ++ dirPath) $
             c_openat dirFd cFileName (ioModeToFlags iomode) 0o666
             {- Can open directory with read only -}
           FD.mkFD
@@ -217,7 +227,7 @@ openFileFromDir dirFd filePath@(takeFileName -> fileName) iomode =
 -- temporary file in the supplied directory
 openAnonymousTempFileFromDir ::
      MonadIO m =>
-     Maybe DirFd
+     Maybe DirFdWithPath
      -- ^ If a file descriptor is given for the directory where the target file is/will be
      -- located in, then it will be used for opening an anonymous file. Otherwise
      -- anonymous will be opened unattached to any file path.
@@ -228,11 +238,15 @@ openAnonymousTempFileFromDir ::
 openAnonymousTempFileFromDir mDirFd filePath iomode =
   liftIO $
   case mDirFd of
-    Just dirFd -> withFilePath "." (openAnonymousWith . c_openat dirFd)
+    Just (DirFdWithPath dirFd _) ->
+      withFilePath "." (openAnonymousWith . c_openat dirFd)
     Nothing ->
       withFilePath (takeDirectory filePath) (openAnonymousWith . c_open)
   where
     fdName = "openAnonymousTempFileFromDir - " ++ filePath
+    dirPath = case mDirFd of
+      Just (DirFdWithPath _ dirPath) -> dirPath
+      Nothing -> takeDirectory filePath
     ioModeToTmpFlags :: IOMode -> CFlag
     ioModeToTmpFlags =
       \case
@@ -242,7 +256,7 @@ openAnonymousTempFileFromDir mDirFd filePath iomode =
     openAnonymousWith fopen =
       bracketOnError
         (do fileFd <-
-              throwErrnoIfMinus1Retry "openAnonymousTempFileFromDir" $
+              throwErrnoIfMinus1Retry ("openAnonymousTempFileFromDir: " ++ dirPath) $
               fopen (o_TMPFILE .|. ioModeToTmpFlags iomode) (s_IRUSR .|. s_IWUSR)
             FD.mkFD
               fileFd
@@ -258,17 +272,17 @@ openAnonymousTempFileFromDir mDirFd filePath iomode =
 
 
 atomicDurableTempFileRename ::
-     DirFd -> Maybe FileMode -> Handle -> Maybe FilePath -> FilePath -> IO ()
-atomicDurableTempFileRename dirFd mFileMode tmpFileHandle mTmpFilePath filePath = do
+     DirFdWithPath -> Maybe FileMode -> Handle -> Maybe FilePath -> FilePath -> IO ()
+atomicDurableTempFileRename mDirFd mFileMode tmpFileHandle mTmpFilePath filePath = do
   fsyncFileHandle "atomicDurableTempFileCreate" tmpFileHandle
   -- at this point we know that the content has been persisted to the storage it
   -- is safe to do the atomic move/replace
   let eTmpFile = maybe (Left tmpFileHandle) Right mTmpFilePath
-  atomicTempFileRename (Just dirFd) mFileMode eTmpFile filePath
+  atomicTempFileRename (Just mDirFd) mFileMode eTmpFile filePath
   -- Important to close the handle, so the we can fsync the directory
   hClose tmpFileHandle
   -- file path is updated, now we can fsync the directory
-  fsyncDirectoryFd "atomicDurableTempFileCreate" dirFd
+  fsyncDirectoryFd "atomicDurableTempFileCreate" mDirFd
 
 
 -- | There will be an attempt to atomically convert an invisible temporary file
@@ -288,7 +302,7 @@ atomicDurableTempFileRename dirFd mFileMode tmpFileHandle mTmpFilePath filePath 
 -- __NOTE__: this function will work only on Linux.
 --
 atomicTempFileCreate ::
-     Maybe DirFd
+     Maybe DirFdWithPath
   -- ^ Possible handle for the directory where the target file is located. Which
   -- means that the file is already in that directory, just without a name. In other
   -- words it was opened before with `openAnonymousTempFileFromDir`
@@ -304,7 +318,7 @@ atomicTempFileCreate ::
 atomicTempFileCreate mDirFd mFileMode tmpFileHandle filePath =
   withHandleFd tmpFileHandle $ \fd@(Fd cFd) ->
     withFilePath ("/proc/self/fd/" ++ show cFd) $ \cFromFilePath ->
-      withFilePath filePathName $ \cToFilePath -> do
+      withFilePath filePathForSyscall $ \cToFilePath -> do
         let fileMode = fromMaybe Posix.stdFileMode mFileMode
         -- work around for the glibc bug: https://sourceware.org/bugzilla/show_bug.cgi?id=17523
         Posix.setFdMode fd fileMode
@@ -319,27 +333,28 @@ atomicTempFileCreate mDirFd mFileMode tmpFileHandle filePath =
         case eExc of
           Right () -> pure ()
           Left () ->
-            withBinaryTempFileFor filePath $ \visTmpFileName visTmpFileHandle -> do
+            withBinaryTempFileFor filePath $ \visTmpFile visTmpFileHandle -> do
               hClose visTmpFileHandle
-              removeFile visTmpFileName
+              removeFile visTmpFile
               case mDirFd of
                 Nothing -> do
-                  withFilePath visTmpFileName (safeLink "visible")
-                  Posix.rename visTmpFileName filePath
-                Just dirFd ->
-                  withFilePath (takeFileName visTmpFileName) $ \cVisTmpFile -> do
+                  withFilePath visTmpFile (safeLink "visible")
+                  Posix.rename visTmpFile filePath
+                Just (DirFdWithPath dirFd dirPath) -> do
+                  let !visTmpFileName = takeFileName visTmpFile
+                  withFilePath visTmpFileName $ \cVisTmpFile -> do
                     safeLink "visible" cVisTmpFile
                     throwErrnoIfMinus1Retry_
-                        "atomicFileCreate - c_safe_renameat" $
+                        ("atomicFileCreate - c_safe_renameat: " ++ dirPath ++ "/(" ++ visTmpFileName ++ " -> " ++ filePathForSyscall ++ ")") $
                       c_renameat dirFd cVisTmpFile dirFd cToFilePath
   where
-    (cDirFd, filePathName) =
+    (cDirFd, filePathForSyscall) =
       case mDirFd of
-        Nothing    -> (Right at_FDCWD, filePath)
-        Just dirFd -> (Left dirFd, takeFileName filePath)
+        Nothing -> (Right at_FDCWD, filePath)
+        Just (DirFdWithPath dirFd _) -> (Left dirFd, takeFileName filePath)
 
 atomicTempFileRename ::
-     Maybe DirFd
+     Maybe DirFdWithPath
      -- ^ Possible handle for the directory where the target file is located.
   -> Maybe FileMode
   -- ^ If file permissions are supplied they will be set on the new file prior
@@ -349,7 +364,7 @@ atomicTempFileRename ::
   -- @O_TMPFILE@ flag and thus we are on the Linux OS and can safely call
   -- `atomicTempFileCreate`
   -> FilePath
-  -- ^ File path for the target file. Whenever `DirFd` is supplied, it must be
+  -- ^ File path for the target file. Whenever `DirFdWithPath` is supplied, it must be
   -- the containgin directory fo this file, but that invariant is not enforced
   -- within this function.
   -> IO ()
@@ -361,18 +376,26 @@ atomicTempFileRename mDirFd mFileMode eTmpFile filePath =
       forM_ mFileMode $ \fileMode -> Posix.setFileMode tmpFilePath fileMode
       case mDirFd of
         Nothing -> Posix.rename tmpFilePath filePath
-        Just dirFd ->
-          withFilePath (takeFileName filePath) $ \cToFilePath ->
-            withFilePath (takeFileName tmpFilePath) $ \cTmpFilePath ->
-              throwErrnoIfMinus1Retry_ "atomicFileCreate - c_safe_renameat" $
+        Just (DirFdWithPath dirFd dirPath) -> do
+          let !fileName = takeFileName filePath
+          let !tmpFileName = takeFileName tmpFilePath
+          withFilePath fileName $ \cToFilePath ->
+            withFilePath tmpFileName $ \cTmpFilePath ->
+              throwErrnoIfMinus1Retry_ ("atomicFileCreate - c_safe_renameat: " ++ dirPath ++ "/(" ++ tmpFileName ++ " -> " ++ fileName ++ ")") $
               c_renameat dirFd cTmpFilePath dirFd cToFilePath
 
 
-withDirectory :: MonadUnliftIO m => FilePath -> (DirFd -> m a) -> m a
-withDirectory dirPath = bracket (DirFd <$> openDir dirPath) closeDirectory
+withDirectory :: MonadUnliftIO m => FilePath -> (DirFdWithPath -> m a) -> m a
+withDirectory dirPath =
+  bracket
+    (do
+      fd <- openDir dirPath
+      pure $! DirFdWithPath (DirFd fd) dirPath
+    )
+    closeDirectory
 
 withFileInDirectory ::
-     MonadUnliftIO m => DirFd -> FilePath -> IOMode -> (Handle -> m a) -> m a
+     MonadUnliftIO m => DirFdWithPath -> FilePath -> IOMode -> (Handle -> m a) -> m a
 withFileInDirectory dirFd filePath iomode =
   bracket (openFileFromDir dirFd filePath iomode) hClose
 
@@ -404,7 +427,7 @@ withBinaryTempFileFor filePath action =
 -- the underlying file system can't handle that feature.
 withAnonymousBinaryTempFileFor ::
      MonadUnliftIO m
-  => Maybe DirFd
+  => Maybe DirFdWithPath
   -- ^ It is possible to open the temporary file in the context of a directory,
   -- in such case supply its file descriptor. i.e. @openat@ will be used instead
   -- of @open@
@@ -428,7 +451,7 @@ withAnonymousBinaryTempFileFor mDirFd filePath iomode action
 
 withNonAnonymousBinaryTempFileFor ::
      MonadUnliftIO m
-  => Maybe DirFd
+  => Maybe DirFdWithPath
   -- ^ It is possible to open the temporary file in the context of a directory,
   -- in such case supply its file descriptor. i.e. @openat@ will be used instead
   -- of @open@
