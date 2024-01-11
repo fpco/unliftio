@@ -26,7 +26,7 @@ __NOTE__ The `UnliftIO.Exception` module in this library changes the semantics o
 * Drop the deps on `monad-control`, `lifted-base`, and `exceptions`
 * Compilation failures? You may have just avoided subtle runtime bugs
 
-Sound like magic? It's not. Keep reading!
+Sounds like magic? It's not. Keep reading!
 
 ## Unlifting in 2 minutes
 
@@ -366,7 +366,7 @@ for `safe-exceptions`. In the future, we may reimplement
 The `unliftio-core` package provides just the typeclass with minimal
 dependencies (just `base` and `transformers`). If you're writing a
 library, we recommend depending on that package to provide your
-instances. The `unliftio` package is a "batteries loaded" library
+instances. The `unliftio` package is a "batteries included" library
 providing a plethora of pre-unlifted helper functions. It's a good
 choice for importing, or even for use in a custom prelude.
 
@@ -379,7 +379,7 @@ plan is to move those instances into the respective libraries and
 remove the dependency on them here.
 
 If there are other temporary orphans that should be added, please
-bring it up in the issue tracker or send a PR, but we'll need to be
+bring them up in the issue tracker or send a PR, but we'll need to be
 selective about adding dependencies.
 
 ## Future questions
