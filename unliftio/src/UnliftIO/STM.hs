@@ -65,6 +65,7 @@ module UnliftIO.STM
   , newTQueueIO
   , STM.readTQueue
   , STM.tryReadTQueue
+  , STM.flushTQueue
   , STM.peekTQueue
   , STM.tryPeekTQueue
   , STM.writeTQueue
