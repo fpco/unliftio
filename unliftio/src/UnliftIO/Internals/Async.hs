@@ -510,8 +510,10 @@ instance (MonadUnliftIO m, Semigroup a) => Semigroup (Conc m a) where
 instance (Monoid a, MonadUnliftIO m) => Monoid (Conc m a) where
   mempty = pure mempty
   {-# INLINE mempty #-}
+#if !MIN_VERSION_base(4,11,0)
   mappend = liftA2 mappend
   {-# INLINE mappend #-}
+#endif
 
 -------------------------
 -- Conc implementation --

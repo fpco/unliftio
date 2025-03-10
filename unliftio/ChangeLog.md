@@ -1,5 +1,9 @@
 # Changelog for unliftio
 
+## 0.2.25.1
+
+* Forward compatibility with `-Wnoncanonical-monoid-instances` becoming an error
+
 ## 0.2.25.0
 
 * Add `UnliftIO.Exception.Lens`
