@@ -68,6 +68,7 @@ tests:
   unliftio-spec:
     source-dirs:
     - test
+    build-tools: hspec-discover
     main: Spec.hs
     dependencies:
     - hspec
