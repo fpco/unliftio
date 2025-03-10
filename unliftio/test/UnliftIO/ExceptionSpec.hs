@@ -3,7 +3,7 @@
 module UnliftIO.ExceptionSpec (spec) where
 
 import qualified Control.Exception
-import Control.Monad (void, (<=<))
+import Control.Monad (void, (<=<), when)
 import Data.Bifunctor (first)
 import Test.Hspec
 import UnliftIO
@@ -78,6 +78,27 @@ spec = do
     it "should catch unliftio-wrapped async exceptions" $ do
       result <- withWrappedAsyncExceptionThrown $ \m -> trySyncOrAsync (void m)
       first fromExceptionUnwrap result `shouldBe` Left (Just Exception1)
+
+  describe "withException" $ do
+    it "should work when withAsync is in the handler" $ do
+      let
+        action =
+          error "oops"
+            `onException` do
+              let
+                timerAction n = do
+                  threadDelay 1000000
+                  when (n < 10) $ do
+                    timerAction (n + 1)
+              withAsync (timerAction 0) $ \a -> do
+                cancel a
+      eresult <-
+        race
+          (action `shouldThrow` errorCall "oops")
+          (do
+            threadDelay 1000000
+            pure 10)
+      eresult `shouldBe` Left ()
 
   describe "fromExceptionUnwrap" $ do
     it "should be the inverse of toAsyncException" $ do
