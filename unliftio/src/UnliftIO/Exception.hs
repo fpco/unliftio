@@ -13,6 +13,7 @@
 module UnliftIO.Exception
   ( -- * Throwing
     throwIO
+  , rethrowIO
   , throwString
   , StringException (..)
   , stringException
@@ -30,6 +31,7 @@ module UnliftIO.Exception
   , catchDeep
   , catchAnyDeep
   , catchJust
+  , catchNoPropagate
 
   , handle
   , handleIO
@@ -39,6 +41,7 @@ module UnliftIO.Exception
   , handleJust
 
   , try
+  , tryWithContext
   , tryIO
   , tryAny
   , tryDeep
@@ -126,12 +129,24 @@ catch
   => m a -- ^ action
   -> (e -> m a) -- ^ handler
   -> m a
-catch f g = withRunInIO $ \run -> run f `EUnsafe.catch` \e ->
+catch f g = withRunInIO $ \run -> run f `EUnsafe.catchNoPropagate` \eWithContext@(EUnsafe.ExceptionWithContext _ e) ->
   if isSyncException e
     then run (g e)
     -- intentionally rethrowing an async exception synchronously,
     -- since we want to preserve async behavior
-    else EUnsafe.throwIO e
+    else EUnsafe.rethrowIO eWithContext
+
+catchNoPropagate
+  :: (MonadUnliftIO m, Exception e)
+  => m a -- ^ action
+  -> (EUnsafe.ExceptionWithContext e -> m a) -- ^ handler
+  -> m a
+catchNoPropagate f g = withRunInIO $ \run -> run f `EUnsafe.catchNoPropagate` \e ->
+  if isSyncException e
+    then run (g e)
+    -- intentionally rethrowing an async exception synchronously,
+    -- since we want to preserve async behavior
+    else EUnsafe.rethrowIO e
 
 -- | 'catch' specialized to only catching 'IOException's.
 --
@@ -165,7 +180,7 @@ catchAnyDeep = catchDeep
 --
 -- @since 0.1.0.0
 catchJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> m a -> (b -> m a) -> m a
-catchJust f a b = a `catch` \e -> maybe (liftIO (throwIO e)) b $ f e
+catchJust f a b = a `catchNoPropagate` \e'@(EUnsafe.ExceptionWithContext _ e) -> maybe (liftIO (EUnsafe.rethrowIO e')) b $ f e
 
 -- | A variant of 'catch' that catches both synchronous and asynchronous exceptions.
 --
@@ -233,6 +248,9 @@ handleSyncOrAsync = flip catchSyncOrAsync
 try :: (MonadUnliftIO m, Exception e) => m a -> m (Either e a)
 try f = catch (liftM Right f) (return . Left)
 
+tryWithContext :: (MonadUnliftIO m, Exception e) => m a -> m (Either (EUnsafe.ExceptionWithContext e) a)
+tryWithContext f = catch (liftM Right f) (return . Left)
+
 -- | 'try' specialized to only catching 'IOException's.
 --
 -- @since 0.1.0.0
@@ -263,7 +281,7 @@ tryAnyDeep = tryDeep
 --
 -- @since 0.1.0.0
 tryJust :: (MonadUnliftIO m, Exception e) => (e -> Maybe b) -> m a -> m (Either b a)
-tryJust f a = catch (Right `liftM` a) (\e -> maybe (throwIO e) (return . Left) (f e))
+tryJust f a = catchNoPropagate (Right `liftM` a) (\e'@(EUnsafe.ExceptionWithContext _ e) -> maybe (liftIO (EUnsafe.rethrowIO e')) (return . Left) (f e))
 
 -- | A variant of 'try' that catches both synchronous and asynchronous exceptions.
 --
@@ -289,8 +307,8 @@ pureTryDeep :: NFData a => a -> Either SomeException a
 pureTryDeep = unsafePerformIO . tryAnyDeep . return
 
 -- | Internal.
-catchesHandler :: MonadIO m => [Handler m a] -> SomeException -> m a
-catchesHandler handlers e = foldr tryHandler (liftIO (EUnsafe.throwIO e)) handlers
+catchesHandler :: MonadIO m => [Handler m a] -> EUnsafe.ExceptionWithContext SomeException -> m a
+catchesHandler handlers eWithCtx@(EUnsafe.ExceptionWithContext ctx e) = foldr tryHandler (liftIO (EUnsafe.rethrowIO eWithCtx)) handlers
     where tryHandler (ESafe.Handler handler) res
               = case fromException e of
                 Just e' -> handler e'
@@ -343,9 +361,9 @@ evaluateDeep = (evaluate $!!)
 bracket :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
 bracket before after thing = withRunInIO $ \run -> EUnsafe.mask $ \restore -> do
   x <- run before
-  res1 <- EUnsafe.try $ restore $ run $ thing x
+  res1 <- EUnsafe.tryWithContext $ restore $ run $ thing x
   case res1 of
-    Left (e1 :: SomeException) -> do
+    Left (e1 :: EUnsafe.ExceptionWithContext SomeException) -> do
       -- explicitly ignore exceptions from after. We know that
       -- no async exceptions were thrown there, so therefore
       -- the stronger exception must come from thing
@@ -353,7 +371,7 @@ bracket before after thing = withRunInIO $ \run -> EUnsafe.mask $ \restore -> do
       -- https://github.com/fpco/safe-exceptions/issues/2
       _ :: Either SomeException b <-
           EUnsafe.try $ EUnsafe.uninterruptibleMask_ $ run $ after x
-      EUnsafe.throwIO e1
+      EUnsafe.rethrowIO e1
     Right y -> do
       _ <- EUnsafe.uninterruptibleMask_ $ run $ after x
       return y
@@ -372,13 +390,13 @@ bracket_ before after thing = bracket before (const after) (const thing)
 bracketOnError :: MonadUnliftIO m => m a -> (a -> m b) -> (a -> m c) -> m c
 bracketOnError before after thing = withRunInIO $ \run -> EUnsafe.mask $ \restore -> do
   x <- run before
-  res1 <- EUnsafe.try $ restore $ run $ thing x
+  res1 <- EUnsafe.tryWithContext $ restore $ run $ thing x
   case res1 of
-    Left (e1 :: SomeException) -> do
+    Left (e1 :: EUnsafe.ExceptionWithContext SomeException) -> do
       -- ignore the exception, see bracket for explanation
       _ :: Either SomeException b <-
         EUnsafe.try $ EUnsafe.uninterruptibleMask_ $ run $ after x
-      EUnsafe.throwIO e1
+      EUnsafe.rethrowIO e1
     Right y -> return y
 
 -- | A variant of 'bracketOnError' where the return value from the first
@@ -400,12 +418,12 @@ finally
   -> m b -- ^ after
   -> m a
 finally thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \restore -> do
-  res1 <- EUnsafe.try $ restore $ run thing
+  res1 <- EUnsafe.tryWithContext $ restore $ run thing
   case res1 of
-    Left (e1 :: SomeException) -> do
+    Left (e1 :: EUnsafe.ExceptionWithContext SomeException) -> do
       -- see bracket for explanation
       _ :: Either SomeException b <- EUnsafe.try $ run after
-      EUnsafe.throwIO e1
+      EUnsafe.rethrowIO e1
     Right x -> do
       _ <- run after
       return x
@@ -417,12 +435,12 @@ finally thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \resto
 withException :: (MonadUnliftIO m, Exception e)
               => m a -> (e -> m b) -> m a
 withException thing after = withRunInIO $ \run -> EUnsafe.uninterruptibleMask $ \restore -> do
-    res1 <- EUnsafe.try $ restore $ run thing
+    res1 <- EUnsafe.tryWithContext $ restore $ run thing
     case res1 of
-        Left e1 -> do
+        Left (e1WithContext@(EUnsafe.ExceptionWithContext _ e1)) -> do
             -- see explanation in bracket
             _ :: Either SomeException b <- EUnsafe.try $ run $ after e1
-            EUnsafe.throwIO e1
+            EUnsafe.rethrowIO e1WithContext
         Right x -> return x
 
 -- | Like 'finally', but only call @after@ if an exception occurs.
@@ -439,6 +457,9 @@ onException thing after = withException thing (\(_ :: SomeException) -> after)
 -- @since 0.1.0.0
 throwIO :: (MonadIO m, Exception e) => e -> m a
 throwIO = liftIO . EUnsafe.throwIO . toSyncException
+
+rethrowIO :: (MonadIO m, Exception e) => EUnsafe.ExceptionWithContext e -> m a
+rethrowIO (EUnsafe.ExceptionWithContext ctx e) = liftIO $ EUnsafe.rethrowIO $ EUnsafe.ExceptionWithContext ctx (toSyncException e)
 
 -- | Convert an exception into a synchronous exception.
 --
