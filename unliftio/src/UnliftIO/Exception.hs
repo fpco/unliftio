@@ -455,7 +455,7 @@ onException thing after = withException thing (\(_ :: SomeException) -> after)
 -- type, it will be wrapped up in 'SyncExceptionWrapper'. See 'toSyncException'.
 --
 -- @since 0.1.0.0
-throwIO :: (MonadIO m, Exception e) => e -> m a
+throwIO :: (HasCallStack, MonadIO m, Exception e) => e -> m a
 throwIO = liftIO . EUnsafe.throwIO . toSyncException
 
 rethrowIO :: (MonadIO m, Exception e) => EUnsafe.ExceptionWithContext e -> m a
