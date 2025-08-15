@@ -9,5 +9,5 @@ void unliftio_inittime(void)
 
 double unliftio_gettime(void)
 {
-    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW);
+    return clock_gettime_nsec_np(CLOCK_UPTIME_RAW) / 1e9;
 }
