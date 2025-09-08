@@ -40,8 +40,8 @@ jobs:
       - name: Install LLVM (macOS only)
         if: runner.os == 'macOS'
         run: |
-          brew install llvm@12
-          echo "/opt/homebrew/opt/llvm@12/bin" >> $GITHUB_PATH
+          brew install llvm@13
+          echo "/opt/homebrew/opt/llvm@13/bin" >> $GITHUB_PATH
 
       - name: Setup Stack
         uses: haskell-actions/setup@v2
