@@ -42,6 +42,12 @@ jobs:
 #          restore-keys: |
 #            ${{ runner.os }}-${{ matrix.resolver }}-
 
+      - name: Setup Stack
+        uses: haskell-actions/setup@v2
+        with:
+          enable-stack: true
+          stack-no-global: true
+
       - name: Build and run tests
         shell: bash
         run: |
