@@ -75,7 +75,13 @@ asyncOnWithUnmask i m =
 --
 -- @since 0.1.0.0
 withAsync :: MonadUnliftIO m => m a -> (Async a -> m b) -> m b
-withAsync a b = withRunInIO $ \run -> A.withAsync (run a) (run . b)
+withAsync a b = withRunInIO $ \run -> do
+  maskingState <- E.getMaskingState
+  case maskingState of
+    E.MaskedUninterruptible ->
+      A.withAsyncWithUnmask (\unmask -> unmask (run a)) (run . b)
+    _ ->
+      A.withAsync (run a) (run . b)
 
 -- | Unlifted 'A.withAsyncBound'.
 --
